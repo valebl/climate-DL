@@ -82,10 +82,10 @@ class Clima_dataset(Dataset):
             return self.input[idx_time - 24 : idx_time+1, :, :, idx_lat - self.PAD + 2 : idx_lat + self.PAD + 4, idx_lon - self.PAD + 2 : idx_lon + self.PAD + 4]
         else:
             idx_time = self.idx_to_key[idx]
-            batch = []
+            input_ae = []
             for idx_lat in self.idx_lat_list:
                 for idx_lon in self.idx_lon_list:
-                    batch.append(self.input[idx_time - 24 : idx_time+1, :, :, idx_lat - self.PAD + 2 : idx_lat + self.PAD + 4, idx_lon - self.PAD + 2 : idx_lon + self.PAD + 4])
+                    input_ae.append(np.array(self.input[idx_time - 24 : idx_time+1, :, :, idx_lat - self.PAD + 2 : idx_lat + self.PAD + 4, idx_lon - self.PAD + 2 : idx_lon + self.PAD + 4]))
             #-- derive gnn data
             y = torch.tensor(self.target[idx_time])
             edge_index = torch.tensor(self.data['edge_index'])
@@ -99,14 +99,15 @@ class Clima_dataset(Dataset):
             else:
                 weights = None
             data = Data(x=x, edge_index=edge_index, y=y, mask=mask, weights=weights)
-            return input, data
+            input_ae = np.array(input_ae)
+            return input_ae, data
         
 def custom_collate_fn_ae(batch):
     input = np.array(batch)
     input = default_convert(input)
     return input
 
-def custom_collate_fn_gnn(batch):
+def custom_collate_fn_gnn(batch):    
     input = np.array([item[0] for item in batch])
     data = [item[1] for item in batch]
     input = default_convert(input)

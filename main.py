@@ -67,6 +67,8 @@ parser.add_argument('--performance', type=str, default=None)
 
 if __name__ == '__main__':
 
+
+    device = "cpu"
     torch.backends.cudnn.benchmark = True
 
     args = parser.parse_args()
@@ -123,16 +125,16 @@ if __name__ == '__main__':
     trainset, testset = torch.utils.data.random_split(dataset, lengths=(len_trainset, len_testset), generator=generator)
     
     # split testset into validationset and testset
-    len_testset = int(len(testset) * 0.999)
-    len_validationset = len(testset) - len_testset
-    testset, validationset = torch.utils.data.random_split(testset, lengths=(len_testset, len_validationset), generator=generator)
+    #len_testset = int(len(testset) * 0.999)
+    #len_validationset = len(testset) - len_testset
+    #testset, validationset = torch.utils.data.random_split(testset, lengths=(len_testset, len_validationset), generator=generator)
 
-    write_log(f'\nTrainset size = {len_trainset}, testset size = {len_testset}, validationset size = {len_validationset}.', accelerator, args)
+    write_log(f"\nTrainset size = {len_trainset}", accelerator, args) #, testset size = {len_testset}, validationset size = {len_validationset}.', accelerator, args)
 
     #-- construct the dataloaders
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
-    validationloader = torch.utils.data.DataLoader(validationset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+    #testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+    #validationloader = torch.utils.data.DataLoader(validationset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     if accelerator is None or accelerator.is_main_process:
         total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
@@ -159,7 +161,7 @@ if __name__ == '__main__':
     if accelerator is not None:
         model, optimizer, trainloader, testloader, validationloader = accelerator.prepare(model, optimizer, trainloader, testloader, validationloader)
     else:
-        model = model.cuda()
+        model = model.to(device)
     
     epoch_start = 0
 
@@ -185,9 +187,9 @@ if __name__ == '__main__':
     start = time.time()
 
     total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
-        train_epoch=train_epoch, validate_model=validate_model, validationloader=validationloader, accelerator=accelerator, 
+        train_epoch=train_epoch, validate_model=validate_model, validationloader=None, accelerator=accelerator, 
         lr_scheduler=scheduler, checkpoint_name=args.output_path+args.out_checkpoint_file, epoch_start=epoch_start, args=args,
-        era5_to_gripho_list=era5_to_gripho_list)
+        era5_to_gripho_list=era5_to_gripho_list, device=device)
 
     end = time.time()
 

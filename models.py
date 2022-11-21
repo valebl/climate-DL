@@ -79,27 +79,30 @@ class Regressor(Encoder):
             ])
 
     def forward(self, X_batch, data_batch, era5_to_gripho_list, device):
-        s = X_batch.shape
-        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
+        s = X_batch.shape # (batch_dim, 420, 25, 5, 5, 6, 6)
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5], s[6]) 
+        s1 = X_batch.shape # (batch_dim*420, 25, 5, 5, 6, 6)
+        X_batch = X_batch.reshape(s1[0]*s1[1], s1[2], s1[3], s1[4], s1[5]) # (batch_dim*420*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)
-        X_batch = X_batch.reshape(s[0], s[1], self.output_dim)
+        X_batch = X_batch.reshape(s1[0], s1[1], self.output_dim) # (batch_dim*420, 25, output_dim)
         encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0], s[1]*self.output_dim)
+        encoding = encoding.reshape(s1[0], s1[1]*self.output_dim) # (bacth_dim*420, 25*output_dim)
         encoding = self.dense(encoding)
+        encoding = encoding.reshape(s[0], s[1], encoding.shape[-1])
 
-        features = torch.zeros((len(data_batch), data_batch[0].x.shape[0], 3 + encoding.shape[1])).to(device)
-        features[:,:,:3] = torch.tensor(data_batch[0].x[:,:])
-
-        print(features.shape)
-        sys.exit()
-
+        s = encoding.shape
+        features = torch.zeros((s[0], data_batch[0].x.shape[0], 3 + s[2])).to(device)
+        features[:,:,:3] = data_batch[0].x[:,:]
+        
         for cell_idx, mapping_idxs in enumerate(era5_to_gripho_list):
-            features[mapping_idxs, 3:] = encoding[cell_idx]
+            features[:, mapping_idxs, 3:] = encoding[:, cell_idx, :].unsqueeze(1).repeat(repeats = (1, sum(mapping_idxs), 1))
 
+        [data.__setitem__('x', features[i, :,:]) for i, data in enumerate(data_batch)]
         data_batch = Batch.from_data_list(data_batch)
         y_pred = torch.exp(self.gnn(data_batch.x, data_batch.edge_index))
         mask = data_batch.mask.squeeze()
         return y_pred.squeeze()[mask], data_batch.y.squeeze()[mask]
+        sys.exit()
 
 class Classifier(Encoder):
     def __init__():

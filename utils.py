@@ -135,13 +135,13 @@ def train_epoch_ae(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_met
 
 
 def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
-            val_performance_meter, validationloader, validate_model, era5_to_gripho_list, accelerator, args, device, intermediate=False, epoch=0):
+            val_performance_meter, validationloader, validate_model, accelerator, args, device, era5_to_gripho_list, intermediate=False, epoch=0):
 
     loss_meter.reset()
-    val_loss_meter.reset()
+    #val_loss_meter.reset()
     if performance_meter is not None:
         performance_meter.reset()
-        val_performance_meter.reset()
+        #val_performance_meter.reset()
 
     model.train()
     i = 0
@@ -164,52 +164,54 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
             performance_meter.add_iter_loss()
 
         if i % 5000 == 0:
-            validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-            if intermediate:
-                if val_performance_meter is not None:
-                    write_log(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.", accelerator, args)   
-                else:
-                    write_log(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}", accelerator, args)
+            #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+            #if intermediate:
+            #    if val_performance_meter is not None:
+            #        write_log(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.", accelerator, args)   
+            #    else:
+            #        write_log(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}", accelerator, args)
 
             if accelerator is None or accelerator.is_main_process:
-                np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-                np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
+                np.savetxt(args.output_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
+                #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
                 if performance_meter is not None:
-                    np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
-                    np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
+                    np.savetxt(args.output_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
+                    #np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
                 checkpoint_dict = {
                     "parameters": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "epoch": epoch
                     }
-                torch.save(checkpoint_dict, log_path+"checkpoint.pth")
+                torch.save(checkpoint_dict, args.output_path+"checkpoint.pth")
 
         i += 1
 
-    validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+    #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
 
 
 #------ TRAIN ------  
 
 def train_model(model, dataloader, loss_fn, optimizer, train_epoch, validate_model, validationloader, accelerator, args,
-        lr_scheduler=None, checkpoint_name="checkpoint.pth", performance=None, epoch_start=0):
+        era5_to_gripho_list, lr_scheduler=None, checkpoint_name="checkpoint.pth", performance=None, epoch_start=0, device='cuda'):
     
     num_epochs = args.epochs
     performance = args.performance
-    device = 'cuda' if accelerator is None else accelerator.device
+    device = device if accelerator is None else accelerator.device
     
     model.train()
 
     # define average meter objects
     loss_meter = AverageMeter()
-    val_loss_meter = AverageMeter()
+    val_loss_meter = None
+    #val_loss_meter = AverageMeter()
 
     if performance is not None:
         performance_meter = AverageMeter()
-        val_performance_meter = AverageMeter()
+        #val_performance_meter = AverageMeter()
     else:
         performance_meter = None
-        val_performance_meter = None
+        #val_performance_meter = None
+    val_performance_meter = None
 
     # epoch loop
     for epoch in range(epoch_start, epoch_start + num_epochs):
@@ -219,41 +221,43 @@ def train_model(model, dataloader, loss_fn, optimizer, train_epoch, validate_mod
         start_time = time.time()
         
         train_epoch(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
-            val_performance_meter, validationloader, validate_model, accelerator, args, device, epoch=epoch)
+            val_performance_meter, validationloader, validate_model, accelerator, args, device, era5_to_gripho_list, epoch=epoch)
         
         end_time = time.time()
         
         loss_meter.add_loss()
-        val_loss_meter.add_loss()
+        #val_loss_meter.add_loss()
         if performance is not None:
             performance_meter.add_loss()
-            val_performance_meter.add_loss()
+            #val_performance_meter.add_loss()
 
         if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step()
 
         if performance_meter is None:
-            write_log(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. "+
-                            f"Validation loss avg = {val_loss_meter.avg:.4f}", accelerator, args)        
+            write_log(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ", accelerator, args)
+                            #f"Validation loss avg = {val_loss_meter.avg:.4f}", accelerator, args)        
         else:
             write_log(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
-                            f"performance: {performance_meter.avg:.4f}. Validation loss avg = {val_loss_meter.avg:.4f}; performance: {val_performance_meter.avg:.4f}", accelerator, args)
+                            f"performance: {performance_meter.avg:.4f}.", accelerator, args) # Validation loss avg = {val_loss_meter.avg:.4f}; performance: {val_performance_meter.avg:.4f}", accelerator, args)
 
-            np.savetxt(log_path+"train_loss.csv", loss_meter.avg_list)
-            np.savetxt(log_path+"val_loss.csv", val_loss_meter.avg_list)
-            np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-            np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
+            np.savetxt(args.output_path+"train_loss.csv", loss_meter.avg_list)
+            #np.savetxt(log_path+"val_loss.csv", val_loss_meter.avg_list)
+            np.savetxt(args.output_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
+            #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
             if performance is not None:
-                np.savetxt(log_path+"train_perf.csv", performance_meter.avg_list)
-                np.savetxt(log_path+"val_perf.csv", val_performance_meter.avg_list)
-                np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
-                np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
+                np.savetxt(args.output_path+"train_perf.csv", performance_meter.avg_list)
+                #np.savetxt(log_path+"val_perf.csv", val_performance_meter.avg_list)
+                np.savetxt(args.output_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
+                #np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
             checkpoint_dict = {
                 "parameters": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "epoch": epoch,
                 }
             torch.save(checkpoint_dict, checkpoint_name)
+
+    return loss_meter.sum, loss_meter.avg_list
 
 #----- VALIDATION ------
 
