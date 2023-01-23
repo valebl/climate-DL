@@ -1,78 +1,67 @@
 import numpy as np
 import xarray as xr
 import pickle
+import argparse
+import os
+import sys
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+parser.add_argument('--input_path', type=str, help='path to input directory', default='/m100_work/ICT22_ESP_0/vblasone/ITALY/')
+parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT22_ESP_0/vblasone/TEST/')
+parser.add_argument('--input_files_suffix', type=str, help='suffix for the input files (convenction: {parameter}{suffix}.nc)', default='_italy')
+parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
+parser.add_argument('--output_file', type=str, help='path to output directory', default='input_standard.pkl')
+parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
 
 
 if __name__ == '__main__':
 
-    input_path = '/m100_work/ICT22_ESP_0/vblasone/SLICED/'
-    output_path = '/m100_work/ICT22_ESP_0/vblasone/PREPROCESSED/'
-    log_file = '/m100_work/ICT22_ESP_0/vblasone/rainfall-maps/.log/prep_input.txt'
+    args = parser.parse_args()
+
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+
+    params = ['q', 't', 'u', 'v', 'z']
+    n_params = len(params)
+ 
+    ## create the input dataset from files
     
-    N_LEVELS = 5
-    N_VARS = 5
-    PAD = 2
-    TIME_DIM = 140256
-    #LON_MIN = 6.5
-    #LON_MAX = 18.75
-    #LAT_MIN = 36.5
-    #LAT_MAX =  47.25
-    #INTERVAL = 0.25
+    with open(args.output_path + args.log_file, 'w') as f:
+        f.write(f'\nStarting to create the input dataset from files.')
 
-    #LON_LIST = np.arange(LON_MIN, LON_MAX, INTERVAL)
-    #LAT_LIST = np.arange(LAT_MIN, LAT_MAX, INTERVAL)
-    #SPACE_IDXS_DIM = len(LAT_LIST) * len(LON_LIST)
-    #LAT_DIM = len(LAT_LIST)
-    #LON_DIM = len(LON_LIST)
+    for p_idx, p in enumerate(params):
+        with open(args.output_path + args.log_file, 'a') as f:
+            f.write(f'\nPreprocessing {p}{args.input_files_suffix}.nc ...')
+        with xr.open_dataset(f'{args.input_path}/{p}{args.input_files_suffix}.nc') as f:
+            data = f[p].values
+            if p_idx == 0: # first parameter being processed -> get dimensions and initialize the input dataset
+                lat_dim = len(f.latitude)
+                lon_dim = len(f.longitude)
+                time_dim = len(f.time)
+                input_ds = np.zeros((time_dim, n_params, args.n_levels, lat_dim, lon_dim), dtype=np.float32) # variables, levels, time, lat, lon
+        input_ds[:, p_idx,:,:,:] = data
 
-    with xr.open_dataset(f"{input_path}/q_sliced.nc") as f:
-        lat_dim_era5 = len(f.latitude)
-        lon_dim_era5 = len(f.longitude)
+    ## post-processing of the input dataset
     
-    with open(output_path+'idx_to_key.pkl', 'rb') as f:
-        idx_to_key = pickle.load(f)
-
-    with open(log_file, 'w') as f:
-        f.write(f'\nStarting the preprocessing.')
-
-    input_ds = np.zeros((TIME_DIM, N_VARS, N_LEVELS, lat_dim_era5, lon_dim_era5), dtype=np.float32) # variables, levels, time, lat, lon
-    v_idx = 0
-    for v in ['q', 't', 'u', 'v', 'z']:
-        with open(log_file, 'a') as f:
-            f.write(f'\nPreprocessing {v}_sliced.nc.')
-        with xr.open_dataset(input_path + f'{v}_sliced.nc') as file:
-            data = file[v].values
-        s = data.shape # (time, levels, lat, lon)
-        #data = data.reshape(s[1], s[0], s[2], s[3]) # (levels, time, lat, lon)
-        input_ds[:,v_idx,:,:,:] = data
-        v_idx += 1
-
+    # flip the dataset
     input_ds = np.flip(input_ds, 3) # the origin in the input files is in the top left corner, while we use the bottom left corner
 
-    with open(log_file, 'a') as f:
-        f.write(f'\nNormalising the dataset.')
+    # standardizing the dataset
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f'\nStandardizing the dataset.')
+    
+    mean_params = [np.mean(input_ds[:,i,:,:,:]) for i in range(n_params)]
+    std_params = [np.std(input_ds[:,i,:,:,:]) for i in range(n_params)]
+    input_ds_standard = np.array([(input_ds[:,i,:,:,:]-mean_params[i])/std_params[i] for i in range(n_params)])
 
-    # normalize the dataset
-    mean_vars = [np.mean(input_ds[i,:,:,:,:]) for i in range(5)]
-    std_vars = [np.std(input_ds[i,:,:,:,:]) for i in range(5)]
-    input_ds_standard = np.array([(input_ds[i,:,:,:,:]-mean_vars[i])/std_vars[i] for i in range(5)])
-
-    with open(log_file, 'a') as f:
-        f.write(f'\nReshaping the dataset.')
-
-    # reshape the two datasets <-> flatten the levels into channels
-    assert input_ds.shape == input_ds_standard.shape
-    ds_shape = input_ds.shape
-    input_ds = input_ds.reshape(ds_shape[0]*ds_shape[1], ds_shape[2], ds_shape[3], ds_shape[4])
-    input_ds_standard = input_ds_standard.reshape(ds_shape[0]*ds_shape[1], ds_shape[2], ds_shape[3], ds_shape[4])
-
-    with open(log_file, 'a') as f:
+    # write the input datasets to files
+    with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nStarting to write the output file.')
     
-    with open(output_path+'input_standard.pkl', 'wb') as f:
+    with open(args.output_path + args.output_file, 'wb') as f:
       pickle.dump(input_ds_standard, f)
     
-    with open(log_file, 'a') as f:
-        f.write(f'\n\Output file written.')
-        f.write(f'\nPreprocessing finished.')
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f'\nOutput file written.\nPreprocessing finished.')
 
