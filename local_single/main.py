@@ -13,7 +13,6 @@ import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
 from utils import train_model
-from dataset import Clima_dataset as Dataset
 
 from accelerate import Accelerator
 
@@ -68,55 +67,57 @@ if __name__ == '__main__':
 
     torch.backends.cudnn.benchmark = True
 
-    args = parser.parse_args()
+    arg = parser.parse_args()
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
-    if args.use_accelerate is True:
+    if arg.use_accelerate is True:
         accelerator = Accelerator()
     else:
         accelerator = None
 
-    Model = getattr(models, args.model_name)
-    train_epoch = getattr(utils, "train_epoch_"+args.net_type)
-    test_model = getattr(utils, "test_model_"+args.net_type)
-    custom_collate_fn = getattr(dataset, "custom_collate_fn_"+args.net_type)
-    validate_model = getattr(utils, "validate_"+args.net_type)
+    if arg.net_type == 'cl' or 'reg':
+        net_arch = 'gnn'
+    else:
+        net_arch = 'ae'
 
-    if args.loss_fn == 'weighted_mse_loss' or args.loss_fn == 'mse_loss_mod':
-        loss_fn = getattr(utils, args.loss_fn)
-    elif args.loss_fn == 'weighted_cross_entropy_loss':
+    Model = getattr(models, arg.model_name)
+    Dataset = getattr(dataset, arg.net_type)
+    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+arg.net_type)
+    train_epoch = getattr(utils, 'train_epoch_'+net_arch)
+
+    if arg.loss_fn == 'weighted_mse_loss' or arg.loss_fn == 'mse_loss_mod':
+        loss_fn = getattr(utils, arg.loss_fn)
+    elif arg.loss_fn == 'weighted_cross_entropy_loss':
         if accelerator is None:
             loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).cuda())
         else:
             loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).to(accelerator.device))
     else:
-        loss_fn = getattr(nn.functional, args.loss_fn)
+        loss_fn = getattr(nn.functional, arg.loss_fn)
     
-    if args.use_accelerate is True:
+    if arg.use_accelerate is True:
         accelerator = Accelerator()
     else:
         accelerator = None
 
     if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.out_log_file, 'w') as f:
-            f.write(f"Cuda is available: {torch.cuda.is_available()}.\nStarting with pct_trainset={args.pct_trainset}, lr={args.lr}, "+
-                f"weight decay = {args.weight_decay} and epochs={args.epochs}."+
+        with open(arg.output_path+arg.out_log_file, 'w') as f:
+            f.write(f"Cuda is available: {torch.cuda.is_available()}.\nStarting with pct_trainset={arg.pct_trainset}, lr={arg.lr}, "+
+                f"weight decay = {arg.weight_decay} and epochs={arg.epochs}."+
                 f"\nThere are {torch.cuda.device_count()} available GPUs.")
             if accelerator is None:
-                f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size}")
+                f.write(f"\nModel = {arg.model_name}, batch size = {arg.batch_size}")
             else:
-                f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size*torch.cuda.device_count()}")
+                f.write(f"\nModel = {arg.model_name}, batch size = {arg.batch_size*torch.cuda.device_count()}")
 
     #-- create the dataset
-    dataset = Dataset(path=args.input_path, input_file=args.input_file, data_file=args.data_file,
-        target_file=args.target_file, idx_file=args.idx_file, net_type=args.net_type, 
-        mask_file=args.mask_file, weights_file=args.weights_file)
+    dataset = Dataset(arg)
 
     #-- split into trainset and testset
     generator=torch.Generator().manual_seed(42)
-    len_trainset = int(len(dataset) * args.pct_trainset)
+    len_trainset = int(len(dataset) * arg.pct_trainset)
     len_testset = len(dataset) - len_trainset
     trainset, testset = torch.utils.data.random_split(dataset, lengths=(len_trainset, len_testset), generator=generator)
     
@@ -126,50 +127,49 @@ if __name__ == '__main__':
     testset, validationset = torch.utils.data.random_split(testset, lengths=(len_testset, len_validationset), generator=generator)
 
     if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(arg.output_path+args.out_log_file, 'a') as f:
             f.write(f'\nTrainset size = {len_trainset}, testset size = {len_testset}, validationset size = {len_validationset}.')
 
     #-- construct the dataloaders
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
-    validationloader = torch.utils.data.DataLoader(validationset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=arg.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=arg.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
+    validationloader = torch.utils.data.DataLoader(validationset, batch_size=arg.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     if accelerator is None or accelerator.is_main_process:
         total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(arg.output_path+arg.out_log_file, 'a') as f:
             f.write(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %")
     
     model = Model()
     net_names = ["encoder.", "gru.", "linear."]
 
     #-- either load the model checkpoint or load the parameters for the encoder
-    if args.load_ae_checkpoint is True and args.ctd_training is False:
-        model = load_encoder_checkpoint(model, args.checkpoint_ae_file, args.output_path, args.out_log_file, accelerator,
-                fine_tuning=args.fine_tuning, net_names=net_names)
-    elif args.load_ae_checkpoint is True and args.ctd_training is True:
+    if arg.load_ae_checkpoint is True and arg.ctd_training is False:
+        model = load_encoder_checkpoint(model, arg.checkpoint_ae_file, arg.output_path, arg.out_log_file, accelerator,
+                fine_tuning=arg.fine_tuning, net_names=net_names)
+    elif arg.load_ae_checkpoint is True and arg.ctd_training is True:
         raise RuntimeError("Either load the ae parameters or continue the training.")
 
     #-- define the optimizer and trainable parameters
-    if not args.fine_tuning:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
+    if not arg.fine_tuning:
+        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=arg.lr, weight_decay=arg.weight_decay)
     else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        optimizer = torch.optim.Adam(model.parameters(), lr=arg.lr, weight_decay=arg.weight_decay)
                 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=arg.step_size, gamma=0.5)
 
     if accelerator is not None:
         model, optimizer, trainloader, testloader, validationloader = accelerator.prepare(model, optimizer, trainloader, testloader, validationloader)
     else:
         model = model.cuda()
 
-    
     epoch_start = 0
 
-    if args.ctd_training:
+    if arg.ctd_training:
         if accelerator is None or accelerator.is_main_process:
-            with open(args.output_path+args.out_log_file, 'a') as f:
+            with open(arg.output_path+args.out_log_file, 'a') as f:
                 f.write("\nLoading the checkpoint to continue the training.")
-        checkpoint = torch.load(args.checkpoint_ctd)
+        checkpoint = torch.load(arg.checkpoint_ctd)
         try:
             model.load_state_dict(checkpoint["parameters"])
         except:
@@ -183,28 +183,23 @@ if __name__ == '__main__':
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if accelerator is None or accelerator.is_main_process: 
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(arg.output_path+args.out_log_file, 'a') as f:
             f.write(f"\nTotal number of trainable parameters: {total_params}.")
 
-    check_freezed_layers(model, args.output_path, args.out_log_file, accelerator)
+    check_freezed_layers(model, arg.output_path, arg.out_log_file, accelerator)
 
     start = time.time()
 
     total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
-        num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
+        num_epochs=arg.epochs, log_path=arg.output_path, log_file=arg.out_log_file, train_epoch=train_epoch,
         validate_model=validate_model, validationloader=validationloader, accelerator=accelerator, lr_scheduler=scheduler,
-        checkpoint_name=args.output_path+args.out_checkpoint_file, performance=args.performance, epoch_start=epoch_start)
+        checkpoint_name=arg.output_path+args.out_checkpoint_file, performance=args.performance, epoch_start=epoch_start)
 
     end = time.time()
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.out_log_file, 'a') as f:
-            f.write(f"\nTraining _cnn_gnn completed in {end - start} seconds.")
-
-    #-- test the model
-    if args.test_model:
-        test_loss_total, test_loss_avg = test_model(model, testloader, args.output_path, args.out_log_file, accelerator,
-                loss_fn=nn.functional.mse_loss, performance=args.performance) 
+            f.write(f"\nTraining completed in {end - start} seconds.")
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.out_log_file, 'a') as f:
