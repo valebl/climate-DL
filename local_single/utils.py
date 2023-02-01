@@ -87,53 +87,6 @@ def check_freezed_layers(model, log_path, log_file, accelerator):
         if accelerator is None or accelerator.is_main_process:
             with open(log_path+log_file, 'a') as f:
                 f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters")
-    return
-
-
-def countour_italy_list(path='/home/vblasone/precipitation-maps/', file_name='Italia.txt'):
-    zones = []
-    with open('/home/vblasone/precipitation-maps/Italia.txt') as f:
-        lines = f.read()
-        for zone in lines.split(';'):
-            zones.append(zone)
-    for i in range(len(zones)):
-        zones[i] = zones[i].split('\n')
-        for j in range(len(zones[i])):
-            zones[i][j] = zones[i][j].split(',')
-        if [''] in zones[i]:
-            zones[i].remove([''])
-    for i in range(len(zones)):
-        for j in range(len(zones[i])):
-            if '' in zones[i][j]:
-                zones[i][j].remove('')
-            if zones[i][j] == []:
-                del zones[i][j]
-                continue
-            for k in range(len(zones[i][j])):
-                zones[i][j][k] = float(zones[i][j][k])
-    return zones
-
-
-def draw_rectangle(x_min, x_max, y_min, y_max, color, ax, fill=False, fill_color=None, alpha=0.5):
-    y_grid = [y_min, y_min, y_max, y_max, y_min]
-    x_grid = [x_min, x_max, x_max, x_min, x_min]
-    ax.plot(x_grid, y_grid, color=color)
-    if fill:
-        if fill_color==None:
-            fill_color = color
-        ax.fill(x_grid, y_grid, color=fill_color, alpha=alpha)
-    return
-
-
-def plot_countour_italy(zones, ax, color='k', alpha_fill=0.1, linewidth=1):
-    j = 0
-    for zone in zones:
-        x_zone = [zone[i][0] for i in range(len(zone)) if i > 0]
-        y_zone = [zone[i][1] for i in range(len(zone)) if i > 0]
-        ax.fill(x_zone, y_zone, color, alpha=alpha_fill)
-        ax.plot(x_zone, y_zone, color, alpha=1, linewidth=1)
-        j += 1
-    return
 
 
 #------Training utilities------
@@ -144,10 +97,10 @@ def train_epoch_ae(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_met
         val_performance_meter, log_path, log_file, validationloader, validate_model, accelerator, intermediate=False, epoch=0):
     
     loss_meter.reset()
-    val_loss_meter.reset()
+    #val_loss_meter.reset()
     if performance_meter is not None:
         performance_meter.reset()
-        val_performance_meter.reset()
+        #val_performance_meter.reset()
 
     i = 0
     for X in dataloader:
@@ -170,32 +123,32 @@ def train_epoch_ae(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_met
             performance_meter.add_iter_loss()
 
         if i % 5000 == 0:
-            validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-            if intermediate:
-                with open(log_path+log_file, 'a') as f:
-                    if val_performance_meter is not None:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
-                    else:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
-            np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
+            #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+            #if intermediate:
+            #    with open(log_path+log_file, 'a') as f:
+            #        if val_performance_meter is not None:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
+            #        else:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
+            #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
             np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
 
             if performance_meter is not None:
                 np.savetxt(log_path+"train_accuracy_iter.csv", performance_meter.avg_iter_list)
-                np.savetxt(log_path+"val_accuracy_iter.csv", val_performance_meter.avg_iter_list)
+                #np.savetxt(log_path+"val_accuracy_iter.csv", val_performance_meter.avg_iter_list)
         i += 1
 
-    validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+    #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
 
 
 def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
             val_performance_meter, log_path, log_file, validationloader, validate_model, accelerator, intermediate=False, epoch=0):
 
     loss_meter.reset()
-    val_loss_meter.reset()
+    #val_loss_meter.reset()
     if performance_meter is not None:
         performance_meter.reset()
-        val_performance_meter.reset()
+        #val_performance_meter.reset()
 
     model.train()
     i = 0
@@ -203,7 +156,11 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
         device = 'cuda' if accelerator is None else accelerator.device
         optimizer.zero_grad()
         y_pred, y, _  = model(X, data, device)
-        loss = loss_fn(y_pred, y)
+        loss = loss_fn(y_pred, y, alpha=0.95, gamma=2, reduction='mean')
+        #loss = loss_fn(y_pred, y)
+        #if accelerator is None or accelerator.is_main_process:
+        #    with open(log_path+log_file, 'a') as f:
+        #        f.write(f'loss shape: {loss.shape}')
         if accelerator is None:
             loss.backward()
         else:
@@ -219,20 +176,20 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
             performance_meter.add_iter_loss()
 
         if i % 5000 == 0:
-            validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-            if intermediate:
-                with open(log_path+log_file, 'a') as f:
-                    if val_performance_meter is not None:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
-                    else:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
+            #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+            #if intermediate:
+            #    with open(log_path+log_file, 'a') as f:
+            #        if val_performance_meter is not None:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
+            #        else:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
         
             if accelerator is None or accelerator.is_main_process:
                 np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-                np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
+                #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
                 if performance_meter is not None:
                     np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
-                    np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
+                    #np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
                 checkpoint_dict = {
                     "parameters": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
@@ -242,7 +199,7 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
 
         i += 1
 
-    validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+    #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
 
 
 #------ TRAIN ------  
@@ -255,14 +212,16 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
 
     # define average meter objects
     loss_meter = AverageMeter()
-    val_loss_meter = AverageMeter()
+    val_loss_meter = None
+    #val_loss_meter = AverageMeter()
 
     if performance is not None:
         performance_meter = AverageMeter()
-        val_performance_meter = AverageMeter()
+        #val_performance_meter = AverageMeter()
     else:
         performance_meter = None
-        val_performance_meter = None
+        #val_performance_meter = None
+    val_performance_meter = None
 
     # epoch loop
     for epoch in range(epoch_start, epoch_start + num_epochs):
@@ -279,10 +238,10 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
         end_time = time.time()
         
         loss_meter.add_loss()
-        val_loss_meter.add_loss()
+        #val_loss_meter.add_loss()
         if performance is not None:
             performance_meter.add_loss()
-            val_performance_meter.add_loss()
+            #val_performance_meter.add_loss()
 
         if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step()
@@ -290,25 +249,149 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
         if accelerator is None or accelerator.is_main_process:
             with open(log_path+log_file, 'a') as f:
                 if performance_meter is None:
-                    f.write(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. "+
-                            f"Validation loss avg = {val_loss_meter.avg:.4f}")
+                    f.write(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
+                            #f"Validation loss avg = {val_loss_meter.avg:.4f}")
                 else:
                     f.write(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
-                            f"performance: {performance_meter.avg:.4f}. Validation loss avg = {val_loss_meter.avg:.4f}; performance: {val_performance_meter.avg:.4f}")
+                            f"performance: {performance_meter.avg:.4f}.")# Validation loss avg = {val_loss_meter.avg:.4f}; performance: {val_performance_meter.avg:.4f}")
 
             np.savetxt(log_path+"train_loss.csv", loss_meter.avg_list)
-            np.savetxt(log_path+"val_loss.csv", val_loss_meter.avg_list)
+            #np.savetxt(log_path+"val_loss.csv", val_loss_meter.avg_list)
             np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-            np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
+            #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
             if performance is not None:
                 np.savetxt(log_path+"train_perf.csv", performance_meter.avg_list)
-                np.savetxt(log_path+"val_perf.csv", val_performance_meter.avg_list)
+                #np.savetxt(log_path+"val_perf.csv", val_performance_meter.avg_list)
                 np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
-                np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
+                #np.savetxt(log_path+"val_perf_iter.csv", val_performance_meter.avg_iter_list)
             checkpoint_dict = {
                 "parameters": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "epoch": epoch,
                 }
-            torch.save(checkpoint_dict, checkpoint_name)
+            torch.save(checkpoint_dict, log_path+f"checkpoint_{epoch}.pth")
+
+    return loss_meter.sum, loss_meter.avg_list
+
+#----- VALIDATION ------
+
+def validate_ae(model, dataloader, accelerator, loss_fn, val_loss_meter, val_performance_meter):
+
+    model.eval()
+    with torch.no_grad():
+        for X in dataloader:
+            if accelerator is None:
+                X = X.cuda()
+            X_pred = model(X)
+            loss = loss_fn(X_pred, X)
+            val_loss_meter.update(loss.item(), X.shape[0])
+            if val_performance_meter is not None:
+                perf = accuracy(X_pred, X)
+                val_performance_meter.update(val=perf, n=X.shape[0])
+        val_loss_meter.add_iter_loss()
+        if val_performance_meter is not None:
+            val_performance_meter.add_iter_loss()
+    model.train()
+    return
+
+
+def validate_gnn(model, dataloader, accelerator, loss_fn, val_loss_meter, val_performance_meter):
+
+    model.eval()
+    with torch.no_grad():
+        for X, data in dataloader:
+            device = 'cuda' if accelerator is None else accelerator.device
+            y_pred, y, _ = model(X, data, device)
+            if val_performance_meter is not None:
+                perf = accuracy(y_pred, y)
+                val_performance_meter.update(val=perf, n=X.shape[0])
+            loss = loss_fn(y_pred, y)
+            val_loss_meter.update(loss.item(), X.shape[0])
+        val_loss_meter.add_iter_loss()
+        if val_performance_meter is not None:
+            val_performance_meter.add_iter_loss()
+    model.train()
+    return
+
+
+#------ TEST ------  
+
+def test_model_ae(model, dataloader, log_path, log_file, accelerator, loss_fn=None, performance=None):
+    
+    if loss_fn is not None:
+        loss_meter = AverageMeter()
+
+    i = 0
+    model.eval()
+    with torch.no_grad():
+        for X in dataloader:
+            if accelerator is None:
+                X = X.cuda()
+            X_pred = model(X)
+            loss = loss_fn(X_pred, X) if loss_fn is not None else None
+            if loss_fn is not None:
+                loss_meter.update(loss.item(), X.shape[0])
+            if i == 0:
+                X_pred = X_pred.detach().cpu().numpy()
+                X = X.detach().cpu().numpy()
+                with open(log_path+"X_pred.pkl", 'wb') as f:
+                    pickle.dump(X_pred, f)
+                with open(log_path+"X.pkl", 'wb') as f:
+                    pickle.dump(X, f)
+            i += 1
+
+    fin_loss_total = loss_meter.sum if loss_fn is not None else None
+    fin_loss_avg = loss_meter.avg if loss_fn is not None else None
+    if accelerator is None or accelerator.is_main_process:
+        with open(log_path+log_file, 'a') as f:
+            f.write(f"\nTESTING - loss total = {fin_loss_total if fin_loss_total is not None else '--'},"
+                    +f"loss avg = {fin_loss_avg if fin_loss_avg is not None else '--'}")
+    return fin_loss_total, fin_loss_avg
+
+
+def test_model_gnn(model, dataloader, log_path, log_file, accelerator, loss_fn=None, performance=None):
+    
+    if loss_fn is not None:
+        loss_meter = AverageMeter()
+    if performance is not None:
+        perf_meter = AverageMeter()
+
+    y_pred_list = []
+    y_list = []
+    model.eval()
+    with torch.no_grad():
+        for X, data in dataloader:
+            device = 'cuda' if accelerator is None else accelerator.device
+            y_pred, y, _ = model(X, data, device)
+            if loss_fn is not None:
+                loss = loss_fn(y_pred, y)
+                loss_meter.update(loss.item(), X.shape[0])
+            else:
+                loss = None
+            if performance is not None:
+                perf = accuracy(y_pred, y)
+                perf_meter.update(perf, X.shape[0])
+                _ = [y_pred_list.append(yi) for yi in torch.argmax(y_pred, dim=-1).detach().cpu().numpy()]
+            else:
+                _ = [y_pred_list.append(yi) for yi in y_pred.detach().cpu().numpy()]
+            
+            _ = [y_list.append(yi) for yi in y.detach().cpu().numpy()]
+        y_list = np.array(y_list)
+        y_pred_list = np.array(y_pred_list)
+        with open(log_path+"y_pred.pkl", 'wb') as f:
+            pickle.dump(y_pred_list, f)
+        with open(log_path+"y.pkl", 'wb') as f:                  
+            pickle.dump(y_list, f)
+
+    fin_loss_total = loss_meter.sum if loss_fn is not None else None
+    fin_loss_avg = loss_meter.avg if loss_fn is not None else None
+    fin_perf_avg = perf_meter.avg if performance is not None else None
+
+    if accelerator is None or accelerator.is_main_process:
+        with open(log_path+log_file, 'a') as f:
+            f.write(f"\nTESTING - loss total = {fin_loss_total if fin_loss_total is not None else '--'},"
+                    +f"loss avg = {fin_loss_avg if fin_loss_avg is not None else '--'}. Performance = {fin_perf_avg}.")
+
+    return fin_loss_total, fin_loss_avg
+
 
