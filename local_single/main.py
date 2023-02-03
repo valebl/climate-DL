@@ -1,3 +1,5 @@
+import wandb
+
 import numpy as np
 import os
 import sys
@@ -66,6 +68,8 @@ parser.add_argument('--performance', type=str, default=None)
 
 if __name__ == '__main__':
 
+    wandb.init(project="test-project", name="run-1")
+    
     torch.backends.cudnn.benchmark = True
 
     args = parser.parse_args()
@@ -78,14 +82,14 @@ if __name__ == '__main__':
     else:
         accelerator = None
 
-    if arg.net_type == 'cl' or 'reg':
+    if args.net_type == 'cl' or 'reg':
         net_arch = 'gnn'
     else:
         net_arch = 'ae'
 
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, args.net_type)
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+args.net_type)
+    Dataset = getattr(dataset, 'Dataset_pr_'+args.net_type)
+    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
     train_epoch = getattr(utils, 'train_epoch_'+net_arch)
 
     #if args.loss_fn == 'weighted_mse_loss' or args.loss_fn == 'mse_loss_mod':
