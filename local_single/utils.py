@@ -15,8 +15,6 @@ class AverageMeter(object):
     '''
     def __init__(self):
         self.reset()
-        self.avg_list = []
-        self.avg_iter_list = []
 
     def reset(self):
         self.val = 0
@@ -29,31 +27,25 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-    
-    def add_loss(self):
-        self.avg_list.append(self.avg)
-    
-    def add_iter_loss(self):
-        self.avg_iter_list.append(self.avg)
 
 
 def use_gpu_if_possible():
     return "cuda:0" if torch.cuda.is_available() else "cpu"
 
-
-def accuracy(prediction, target):
-    if prediction.shape == target.shape:
-        prediction_class = torch.where(prediction > 0.5, 1.0, 0.0) 
-    else:
-        prediction_class = torch.argmax(prediction, dim=-1).squeeze()
+def accuracy_binary_one(prediction, target):
+    prediction_class = torch.where(prediction > 0.5, 1.0, 0.0) 
     correct_items = (prediction_class == target)
     acc = correct_items.sum().item() / prediction.shape[0]  
     return acc
 
+def accuracy_binary_two(prediction, target):
+    prediction_class = torch.argmax(prediction, dim=-1).squeeze()
+    correct_items = (prediction_class == target)
+    acc = correct_items.sum().item() / prediction.shape[0]  
+    return acc
 
 def weighted_mse_loss(input_batch, target_batch, weights):
     return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
-
 
 def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, fine_tuning=True, net_names=['encoder', 'gru', 'linear']):
     if accelerator is None or accelerator.is_main_process:
@@ -87,168 +79,86 @@ def check_freezed_layers(model, log_path, log_file, accelerator):
         n_param = param.numel()
         if accelerator is None or accelerator.is_main_process:
             with open(log_path+log_file, 'a') as f:
-                f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters")
+                f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters") 
 
 
-#------Training utilities------
+class Trainer(object):
 
-#------EPOCH LOOPS------  
-
-def train_epoch_ae(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
-        val_performance_meter, log_path, log_file, validationloader, validate_model, accelerator, intermediate=False, epoch=0):
-    
-    loss_meter.reset()
-    #val_loss_meter.reset()
-    if performance_meter is not None:
-        performance_meter.reset()
-        #val_performance_meter.reset()
-
-    i = 0
-    for X in dataloader:
-        if accelerator is None:
-            X = X.cuda()
-        optimizer.zero_grad()
-        X_pred = model(X)
-        loss = loss_fn(X_pred, X)
-        if accelerator is None:
-            loss.backward()
-        else:
+    def _train_epoch_ae(self, model, dataloader, optimizer, loss_fn, acelerator, args):
+        loss_meter = AverageMeter()     
+        start = time.time()
+        for X in dataloader:
+            optimizer.zero_grad()
+            X_pred = model(X)
+            loss = loss_fn(X_pred, X)
             accelerator.backward(loss)
-        optimizer.step()
-        loss_meter.update(val=loss.item(), n=X.shape[0])
-        loss_meter.add_iter_loss()
- 
-        if performance_meter is not None:
-            perf = accuracy(X_pred, X)
-            performance_meter.update(val=perf, n=X.shape[0])
-            performance_meter.add_iter_loss()
+            optimizer.step()
+            loss_meter.update(val=loss.item(), n=X.shape[0])
+            wandb.log({'iteration': epoch, 'loss': loss_meter.val, 'loss avg': loss_meter.avg)
+        end = time.time()
+        wandb.log({'loss epoch': loss_meter.avg})
+        if accelerator.is_main_process:
+            with open(args.output_path+args.log_file, 'a') as f:
+                f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-        if i % 5000 == 0:
-            #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-            #if intermediate:
-            #    with open(log_path+log_file, 'a') as f:
-            #        if val_performance_meter is not None:
-            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
-            #        else:
-            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
-            #np.savetxt(log_path+"val_loss_iter.csv", val_loss_meter.avg_iter_list)
-            np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-
-            if performance_meter is not None:
-                np.savetxt(log_path+"train_accuracy_iter.csv", performance_meter.avg_iter_list)
-                #np.savetxt(log_path+"val_accuracy_iter.csv", val_performance_meter.avg_iter_list)
-        i += 1
-
-    #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-
-
-def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, log_path, 
-        log_file, accelerator, epoch=0):
-
-    loss_meter.reset()
-    if performance_meter is not None:
-        performance_meter.reset()
-
-    model.train()
-    i = 0
-    for X, data in dataloader:
-        device = 'cuda' if accelerator is None else accelerator.device
-        optimizer.zero_grad()
-        y_pred, y, _  = model(X, data, device)
-        loss = loss_fn(y_pred, y, alpha=0.95, gamma=2, reduction='mean')
-        #loss = loss_fn(y_pred, y)
-        if accelerator is None:
-            loss.backward()
-        else:
-            accelerator.backward(loss)
-        torch.nn.utils.clip_grad_norm_(model.parameters(),5)
-        optimizer.step()
-        loss_meter.update(val=loss.item(), n=X.shape[0])    
-        loss_meter.add_iter_loss()    
-
-        if performance_meter is not None:
-            perf = accuracy(y_pred, y)
-            performance_meter.update(val=perf, n=X.shape[0])
-            performance_meter.add_iter_loss()
-
-        wandb.log({'iteration': epoch, 'loss': loss_meter.val, 'accuracy': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
-
-'''        if i % 5000 == 0:
-        
-            if accelerator is None or accelerator.is_main_process:
-                np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-                if performance_meter is not None:
-                    np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
-                checkpoint_dict = {
-                    "parameters": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "epoch": epoch
-                    }
-                torch.save(checkpoint_dict, log_path+"checkpoint.pth")
-
-        i += 1
-'''
-
-
-#------ TRAIN ------  
-
-def train_model(model, dataloader, loss_fn, optimizer, num_epochs, log_path, log_file, train_epoch,
-        accelerator, lr_scheduler=None, checkpoint_name="checkpoint.pth", performance=None, epoch_start=0):
-    
-    model.train()
-
-    loss_meter = AverageMeter()
-    if performance is not None:
+    def _train_epoch_cl(self, model, dataloader, accelerator, args, alpha=0.95, gamma=2):
+        loss_meter = AverageMeter()
         performance_meter = AverageMeter()
-    else:
-        performance_meter = None
+        start = time.time()
+        for X, data in dataloader:
+            optimizer.zero_grad()
+            y_pred, y, _  = model(X, data, accelerator.device)
+            loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
+            accelerator.backward(loss)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),5)
+            optimizer.step()
+            loss_meter.update(val=loss.item(), n=X.shape[0])    
+            performance = accuracy_binary_one(y_pred, y)
+            performance_meter.update(val=performance, n=X.shape[0])
+            wandb.log({'iteration': epoch, 'loss': loss_meter.val, 'accuracy': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
+        end = time.time()
+        wandb.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
+        if accelerator.is_main_process:
+            with open(args.output_path+args.log_file, 'a') as f:
+                f.write(f"\nEpoch {epoch+1} completed in {time - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
+                    f"performance: {performance_meter.avg:.4f}.")
 
-    # epoch loop
-    for epoch in range(epoch_start, epoch_start + num_epochs):
-        
-        if accelerator is None or accelerator.is_main_process:
-            with open(log_path+log_file, 'a') as f:
-                f.write(f"\nEpoch {epoch+1} --- learning rate {optimizer.param_groups[0]['lr']:.8f}")
-        
-        start_time = time.time()
-        
-        train_epoch(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, log_path,
-                log_file, accelerator, epoch=epoch)
-        
-        end_time = time.time()
-    
-        if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            lr_scheduler.step()
+    def _train_epoch_reg(self, epoch, model, dataloader, accelerator, args):
+        loss_meter = AverageMeter()
+        start = time.time()
+        for X, data in dataloader:
+            optimizer.zero_grad()
+            y_pred, y, _  = model(X, data, accelerator.device)
+            loss = loss_fn(y_pred, y)
+            accelerator.backward(loss)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),5)
+            optimizer.step()
+            loss_meter.update(val=loss.item(), n=X.shape[0])    
+            wandb.log({'loss iteration': loss_meter.val, 'loss iteration avg': loss_meter.avg})
+        end = time.time()
+        wandb.log({'loss epoch': loss_meter.avg})
+        if accelerator.is_main_process:
+            with open(args.output_path+args.log_file, 'a') as f:
+                f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-        if accelerator is None or accelerator.is_main_process:
-            with open(log_path+log_file, 'a') as f:
-                if performance_meter is None:
-                    f.write(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
-                else:
-                    f.write(f"\nEpoch {epoch+1} completed in {end_time - start_time:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
-                            f"performance: {performance_meter.avg:.4f}.")
-
-            np.savetxt(log_path+"train_loss.csv", loss_meter.avg_list)
-            np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
-            if performance is not None:
-                np.savetxt(log_path+"train_perf.csv", performance_meter.avg_list)
-                np.savetxt(log_path+"train_perf_iter.csv", performance_meter.avg_iter_list)
+    def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args):
+        train_epoch = locals()[f"_train_epoch_{args.model_type}"]()
+        model.train()
+        for epoch in args.num_epochs:
+            if accelerator.is_main_process:
+                with open(args.output_path+args.log_file, 'a') as f:
+                    f.write(f"\nEpoch {epoch+1} --- learning rate {optimizer.param_groups[0]['lr']:.8f}")
+                train_epoch(model, dataloader)
+            if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+                lr_scheduler.step()
             checkpoint_dict = {
                 "parameters": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "epoch": epoch,
                 }
-            torch.save(checkpoint_dict, log_path+f"checkpoint_{epoch}.pth")
-        
-        wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
+            torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
 
-
-        loss_meter.reset()
-        if performance is not None:
-            performance_meter.reset()
-    
-    return loss_meter.sum, loss_meter.avg_list
-
+'''
 #----- VALIDATION ------
 
 def validate_ae(model, dataloader, accelerator, loss_fn, val_loss_meter, val_performance_meter):
@@ -369,5 +279,5 @@ def test_model_gnn(model, dataloader, log_path, log_file, accelerator, loss_fn=N
                     +f"loss avg = {fin_loss_avg if fin_loss_avg is not None else '--'}. Performance = {fin_perf_avg}.")
 
     return fin_loss_total, fin_loss_avg
-
+'''
 

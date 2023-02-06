@@ -41,12 +41,12 @@ class Dataset_pr_ae(Dataset_pr):
         self.length = len(idx_to_key)
         return input, idx_to_key
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, lat_shift=29, lon_shift=0):
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_idxs_dim
         space_idx = k % self.space_idxs_dim
-        lat_idx = space_idx // self.lon_dim
-        lon_idx = space_idx % self.lon_dim
+        lat_idx = space_idx // self.lon_dim - lat_shift
+        lon_idx = space_idx % self.lon_dim - lon_shift
         #-- derive input
         input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input
@@ -72,12 +72,12 @@ class Dataset_pr_reg(Dataset_pr):
         self.length = len(idx_to_key)
         return input, idx_to_key, target, data, mask
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, lat_shift=29, lon_shift=0):
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_idxs_dim
         space_idx = k % self.space_idxs_dim
-        lat_idx = space_idx // self.lon_dim
-        lon_idx = space_idx % self.lon_dim
+        lat_idx = space_idx // self.lon_dim - lat_shift
+        lon_idx = space_idx % self.lon_dim - lon_shift
         #-- derive input
         input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         #-- derive gnn data
@@ -106,12 +106,12 @@ class Dataset_pr_cl(Dataset_pr):
         self.length = len(idx_to_key)
         return input, idx_to_key, target, data
  
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, lat_shift=29, lon_shift=0):
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_idxs_dim
         space_idx = k % self.space_idxs_dim
-        lat_idx = space_idx // self.lon_dim
-        lon_idx = space_idx % self.lon_dim
+        lat_idx = space_idx // self.lon_dim - lat_shift
+        lon_idx = space_idx % self.lon_dim - lon_shift
         #-- derive input
         input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         #-- derive gnn data

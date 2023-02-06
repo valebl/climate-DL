@@ -62,7 +62,7 @@ parser.add_argument('--no-test_model', dest='test_model', action='store_false')
 #-- other
 parser.add_argument('--model_name', type=str)
 parser.add_argument('--loss_fn', type=str, default="mse_loss")
-parser.add_argument('--net_type', type=str)
+parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 
 if __name__ == '__main__':
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
     os.environ['WANDB_USERNAME'] = 'valebl'
     os.environ['WANDB_MODE'] = 'offline'
-    wandb.init(project="Classification", name="Run_0-3")
+    wandb.init(project="Regression", name="Run_0-49")
     
     torch.backends.cudnn.benchmark = True
 
@@ -85,13 +85,13 @@ if __name__ == '__main__':
     else:
         accelerator = None
 
-    if args.net_type == 'cl' or 'reg':
+    if args.model_type == 'cl' or 'reg':
         net_arch = 'gnn'
     else:
         net_arch = 'ae'
 
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, 'Dataset_pr_'+args.net_type)
+    Dataset = getattr(dataset, 'Dataset_pr_'+args.model_type)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
     train_epoch = getattr(utils, 'train_epoch_'+net_arch)
 
@@ -193,10 +193,12 @@ if __name__ == '__main__':
 
     start = time.time()
 
-    total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
-        num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
-        accelerator=accelerator, lr_scheduler=scheduler, checkpoint_name=args.output_path+args.out_checkpoint_file,
-        performance=args.performance, epoch_start=epoch_start)
+    trainer = Trainer(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+
+    #total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
+    #    num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
+    #    accelerator=accelerator, lr_scheduler=scheduler, checkpoint_name=args.output_path+args.out_checkpoint_file,
+    #    performance=args.performance, epoch_start=epoch_start)
 
     end = time.time()
 
