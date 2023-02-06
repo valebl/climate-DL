@@ -129,7 +129,8 @@ dmypy.json
 .pyre/
 
 # MORE
-/preprocessing
+preprocessing
 .gitignore
-
-
+local_single/wandb
+local_single/test_cl
+local_single/run_classes.sh

@@ -107,9 +107,23 @@ class Classifier(nn.Module):
             (GATv2Conv(3+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
+            #(GATv2Conv(256, 128, heads=2, aggr='mean'), 'x, edge_index -> x'),
+            #(geometric_nn.BatchNorm(256), 'x -> x'),
+            #nn.ReLU(),
             (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
+            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
+            #(geometric_nn.BatchNorm(128), 'x -> x'),
+            #nn.ReLU(),
+            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
+            #(geometric_nn.BatchNorm(128), 'x -> x'),
+            #nn.ReLU(),
+            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
+            #(geometric_nn.BatchNorm(128), 'x -> x'),
+            #nn.ReLU(),
+            #(GATv2Conv(128, 2, aggr='mean'), 'x, edge_index -> x'), # weighted cross entropy
+            #nn.Softmax(dim=-1)                                      # weighted cross entropy
             (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'), # focal loss
             nn.Sigmoid()                                            # focal loss
             ])
@@ -131,7 +145,8 @@ class Classifier(nn.Module):
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch
+        return y_pred, data_batch.y, data_batch.batch                           # focal loss
+        #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
 class Regressor(nn.Module):
@@ -173,9 +188,21 @@ class Regressor(nn.Module):
             (GATv2Conv(3+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
+            #(GATv2Conv(256, 128, heads=2, aggr='mean'), 'x, edge_index -> x'), #
+            #(geometric_nn.BatchNorm(256), 'x -> x'),                           #
+            #nn.ReLU(),                                                         #
             (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
+            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),        #
+            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
+            #nn.ReLU(),                                                       #
+            #GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),         #
+            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
+            #nn.ReLU(),                                                       #
+            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),        #
+            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
+            #nn.ReLU(),                                                       #
             (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'),
             ])
 
@@ -199,12 +226,11 @@ class Regressor(nn.Module):
         mask = data_batch.mask.squeeze()
         return y_pred.squeeze()[mask], data_batch.y.squeeze()[mask], data_batch.batch[mask]
 
-
 class Classifier_test(Classifier):
 
     def __init__(self):
         super().__init__()
-
+    
     def forward(self, X_batch, data_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
@@ -213,7 +239,7 @@ class Classifier_test(Classifier):
         encoding, _ = self.gru(X_batch)
         encoding = encoding.reshape(s[0], s[1]*self.output_dim)
         encoding = self.dense(encoding)
-
+            
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
@@ -222,16 +248,15 @@ class Classifier_test(Classifier):
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        prediction_class = torch.where(y_pred >= 0.5, 1, 0)              # focal loss 
-        y = data_batch.y
-        return prediction_class, y, data_batch.batch                             # focal loss
+        prediction_class = torch.argmax(y_pred, dim=-1).squeeze() 
+        return prediction_class, data_batch.y.squeeze().to(torch.long), data_batch.batch
 
 
 class Regressor_test(Regressor):
-
+    
     def __init__(self):
         super().__init__()
-
+    
     def forward(self, X_batch, data_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
@@ -249,27 +274,4 @@ class Regressor_test(Regressor):
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        y_pred = torch.expm1(y_pred)                            # log1p
-        y = data_batch.y
-        return y_pred, y, data_batch.batch
-
-
-class Regressor_test_large(Regressor):
-    
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, data_batch):
-        y_pred = torch.expm1(self.gnn(data_batch.x, data_batch.edge_index))
-        return y_pred
-
-
-class Classifier_test_large(Classifier):
-    
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, data_batch):
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        y_pred = torch.where(y_pred > 0.5, 1, 0) # focal loss
-        return y_pred
+        return y_pred.squeeze(), data_batch.y.squeeze(), data_batch.batch

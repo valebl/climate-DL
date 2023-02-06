@@ -3,6 +3,22 @@ import xarray as xr
 import pickle
 import matplotlib.pyplot as plt
 import time
+import argparse
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+#-- paths
+parser.add_argument('--output_path', type=str, default='/m100_work/ICT22_ESP_0/vblasone/PREPROCESSED_TEST_CODE/')
+parser.add_argument('--log_file', type=str, default='log.txt')
+parser.add_argument('--target_path_file', type=str, default='/m100_work/ICT22_ESP_0/vblasone/GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
+parser.add_argument('--topo_path_file', type=str, default='/m100_work/ICT22_ESP_0/vblasone/TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
+parser.add_argument('--input_path_file', type=str, default='/m100_work/ICT22_ESP_0/vblasone/SLICED/q_sliced.nc')
+
+# lat lon grid values
+parser.add_argument('--lon_min', type=float, default=6.50)
+parser.add_argument('--lon_max', type=float, default=14.00)
+parser.add_argument('--lat_min', type=float, default=43.75)
+parser.add_argument('--lat_max', type=float, default=47.25)
 
 def select_from_gripho(lon_min, lon_max, lat_min, lat_max, lon, lat, pr, geo):
     bool_lon = np.logical_and(lon >= lon_min, lon <= lon_max)
@@ -14,8 +30,7 @@ def select_from_gripho(lon_min, lon_max, lat_min, lat_max, lon, lat, pr, geo):
 
 if __name__ == '__main__':
 
-    log_file = "/m100_work/ICT22_ESP_0/vblasone/rainfall-maps/.log/north_italy_graph.txt"
-    output_path = "/m100_work/ICT22_ESP_0/vblasone/PREPROCESSED_220912/"
+    args = parser.parse_args()
 
     TIME_DIM = 140256
     SPATIAL_POINTS_DIM = 2107
@@ -28,72 +43,52 @@ if __name__ == '__main__':
     LON_DIFF_MAX = 0.25 / 8 * 2
     LAT_DIFF_MAX = 0.25 / 10 * 2
 
-
-    gripho = xr.open_dataset("/m100_work/ICT22_ESP_0/vblasone/GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc")
-    era5_q = xr.open_dataset("/m100_work/ICT22_ESP_0/vblasone/SLICED/q_sliced.nc")
-    topo = xr.open_dataset("/m100_work/ICT22_ESP_0/vblasone/TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc")
+    gripho = xr.open_dataset(args.target_path_file)
+    era5_q = xr.open_dataset(args.input_path_file)
+    topo = xr.open_dataset(args.topo_path_file)
 
     lon = gripho.lon.to_numpy()
     lat = gripho.lat.to_numpy()
     pr = gripho.pr.to_numpy()
-    geo = topo.z.to_numpy()
+    z = topo.z.to_numpy()
 
-    lon_coarse_grid_gripho_array = np.arange(LON_MIN, LON_MAX, INTERVAL)
-    lat_coarse_grid_gripho_array = np.arange(LAT_MIN, LAT_MAX, INTERVAL)
+    #lon_coarse_grid_gripho_array = np.arange(LON_MIN, LON_MAX, INTERVAL)
+    #lat_coarse_grid_gripho_array = np.arange(LAT_MIN, LAT_MAX, INTERVAL)
 
-    with open(log_file, 'w') as f:
+    with open(args.output_path + args.log_file, 'w') as f:
         f.write(f"\nStarting the preprocessing.")
 
     gnn_target = {}
     gnn_data = {}
     start = time.time()
     
-    # for i, lat_coarse_grid in enumerate(lat_coarse_grid_gripho_array):
-    #     for j, lon_coarse_grid in enumerate(lon_coarse_grid_gripho_array):
-    #         idx_space = i * lon_coarse_grid_gripho_array.shape[0] + j
-
     lon_min = 6.50
     lon_max = 14.00
     lat_min = 43.75
     lat_max = 47.25
 
             
-    # consider the cell with (lat_era5, lon_era5) as bottom-left corner
-    selected_lon, selected_lat, selected_pr, selected_geo = select_from_gripho(lon_min, lon_max,
-        lat_min, lat_max, lon, lat, pr, geo)
+    # select the region of interest to define the output graph
+    lon_sel, lat_sel, pr_sel, z_sel = select_from_gripho(lon_min, lon_max,
+        lat_min, lat_max, lon, lat, pr, z)
 
-    # assert selected_lon.shape == selected_geo.shape
-    
-    # if selected_pr.size == 0:  # cell must contain a part of Italy
-    #     with open(log_file, 'a') as f:
-    #         f.write(f"\nidx {idx_space}: there are no pr values")
-    #     continue
-    # elif np.isnan(selected_pr).all():
-    #     with open(log_file, 'a') as f:
-    #         f.write(f"\nidx {idx_space}: all pr values are nan")
-    #     continue
-    # else:
-    #     with open(log_file, 'a') as f:
-    #         f.write(f"\nidx {idx_space}: there are some nice nodes!")
-        
-    selected_pr_italy = []
-    selected_lon_italy = []
-    selected_lat_italy = []
-    selected_geo_italy = []
+    pr_target = []
+    lon_target = []
+    lat_target = []
+    z_target = []
 
-    for s in range(selected_pr.shape[1]):
+    for s in range(pr_sel.shape[1]):
         # for each (lon, lat) point check that there is at least one value not nan
-        if not np.isnan(selected_pr[:,s]).all():
-            selected_pr_italy.append(selected_pr[:,s])
-            selected_lon_italy.append(selected_lon[s])
-            selected_lat_italy.append(selected_lat[s])
-            selected_geo_italy.append(selected_geo[s])
+        if not np.isnan(pr_sel[:,s]).all():
+            pr_target.append(pr_sel[:,s])
+            lon_target.append(lon_sel[s])
+            lat_target.append(lat_sel[s])
+            z_target.append(z_sel[s])
 
-    selected_pr_italy = np.array(selected_pr_italy)
-    selected_pr_italy = selected_pr_italy.reshape(
-        selected_pr_italy.shape[1],selected_pr_italy.shape[0])
+    pr_target = np.array(pr_target)
+    pr_target = pr_target.swapaxes(0,1)
 
-    x = np.stack((selected_lon_italy, selected_lat_italy, selected_geo_italy), axis=-1)
+    x = np.stack((lon_target, lat_target, z_target), axis=-1)
     edge_index = np.empty((2,0), dtype=int)
 
     for ii, xi in enumerate(x):
@@ -101,16 +96,6 @@ if __name__ == '__main__':
             if not np.array_equal(xi, xj) and np.abs(xi[0] - xj[0]) < LON_DIFF_MAX and np.abs(xi[1] - xj[1]) < LAT_DIFF_MAX:
                 edge_index = np.concatenate((edge_index, np.array([[ii], [jj]])), axis=-1, dtype=int)
     gnn_data = {'x': x, 'edge_index': edge_index}
-
-    # for t in range(TIME_DIM):
-    #     idx = t * SPATIAL_POINTS_DIM + idx_space
-    #     if not np.isnan(selected_pr_italy[t]).any():
-    #         pr_t = selected_pr_italy[t]
-    #         y = pr_t.reshape(pr_t.shape[0],1)
-    #         gnn_target[idx] = y
-
-    # with open(log_file, 'a') as f:
-    #     f.write(f"\nFinished latitude = {lat_era5} in {time.time() - start} seconds")
 
     with open(log_file, 'a') as f:
         f.write(f"\nPreprocessing took {time.time() - start} seconds")    
@@ -123,3 +108,6 @@ if __name__ == '__main__':
 
     with open(log_file, 'a') as f:
         f.write(f"\nDone! :)")  
+
+
+

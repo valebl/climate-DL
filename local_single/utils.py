@@ -1,3 +1,4 @@
+import wandb
 import numpy as np
 import time
 import sys
@@ -141,15 +142,16 @@ def train_epoch_ae(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_met
     #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
 
 
-def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
-            val_performance_meter, log_path, log_file, validationloader, validate_model, accelerator, intermediate=False, epoch=0):
+def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, log_path, 
+        log_file, accelerator, epoch=0):
 
     loss_meter.reset()
     if performance_meter is not None:
         performance_meter.reset()
 
     model.train()
-    for i, X, data in enumerate(dataloader):
+    i = 0
+    for X, data in dataloader:
         device = 'cuda' if accelerator is None else accelerator.device
         optimizer.zero_grad()
         y_pred, y, _  = model(X, data, device)
@@ -162,14 +164,14 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
         torch.nn.utils.clip_grad_norm_(model.parameters(),5)
         optimizer.step()
         loss_meter.update(val=loss.item(), n=X.shape[0])    
-        #loss_meter.add_iter_loss()    
+        loss_meter.add_iter_loss()    
 
-        #if performance_meter is not None:
-        perf = accuracy(y_pred, y)
-        performance_meter.update(val=perf, n=X.shape[0])
-            #performance_meter.add_iter_loss()
+        if performance_meter is not None:
+            perf = accuracy(y_pred, y)
+            performance_meter.update(val=perf, n=X.shape[0])
+            performance_meter.add_iter_loss()
 
-        wandb.log({'iter': i, 'loss': loss_meter.val, 'accuracy': performance_meter.val})
+        wandb.log({'iteration': epoch, 'loss': loss_meter.val, 'accuracy': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
 
 '''        if i % 5000 == 0:
         
@@ -190,12 +192,12 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
 
 #------ TRAIN ------  
 
-def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
-        log_path, log_file, train_epoch, validate_model, validationloader, accelerator,
-        lr_scheduler=None, checkpoint_name="checkpoint.pth", performance=None, epoch_start=0):
+def train_model(model, dataloader, loss_fn, optimizer, num_epochs, log_path, log_file, train_epoch,
+        accelerator, lr_scheduler=None, checkpoint_name="checkpoint.pth", performance=None, epoch_start=0):
     
     model.train()
 
+    loss_meter = AverageMeter()
     if performance is not None:
         performance_meter = AverageMeter()
     else:
@@ -210,15 +212,11 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
         
         start_time = time.time()
         
-        train_epoch(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, val_loss_meter,
-            val_performance_meter, log_path, log_file, validationloader, validate_model, accelerator, epoch=epoch)
+        train_epoch(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_meter, performance_meter, log_path,
+                log_file, accelerator, epoch=epoch)
         
         end_time = time.time()
-        
-        loss_meter.add_loss()
-        if performance is not None:
-            performance_meter.add_loss()
-
+    
         if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step()
 
@@ -241,7 +239,14 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
                 "epoch": epoch,
                 }
             torch.save(checkpoint_dict, log_path+f"checkpoint_{epoch}.pth")
+        
+        wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
 
+
+        loss_meter.reset()
+        if performance is not None:
+            performance_meter.reset()
+    
     return loss_meter.sum, loss_meter.avg_list
 
 #----- VALIDATION ------

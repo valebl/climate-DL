@@ -38,6 +38,7 @@ class Dataset_pr_ae(Dataset_pr):
             input = pickle.load(f) 
         with open(self.args.input_path + self.args.idx_file,'rb') as f:
             idx_to_key = pickle.load(f)
+        self.length = len(idx_to_key)
         return input, idx_to_key
 
     def __getitem__(self, idx):
@@ -55,7 +56,7 @@ class Dataset_pr_reg(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self, target, self,data, self.mask = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.target, self,data, self.mask = self._load_data_into_memory()
     
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -68,16 +69,17 @@ class Dataset_pr_reg(Dataset_pr):
             data = pickle.load(f)
         with open(self.args.input_path + self.args.mask_file, 'rb') as f:
             mask = pickle.load(f)
+        self.length = len(idx_to_key)
         return input, idx_to_key, target, data, mask
     
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
-        time_idx = k // self.SPACE_IDXS_DIM
-        space_idx = k % self.SPACE_IDXS_DIM
-        lat_idx = space_idx // self.LON_DIM
-        lon_idx = space_idx % self.LON_DIM
+        time_idx = k // self.space_idxs_dim
+        space_idx = k % self.space_idxs_dim
+        lat_idx = space_idx // self.lon_dim
+        lon_idx = space_idx % self.lon_dim
         #-- derive input
-        input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.PAD + 2 : lat_idx + self.PAD + 4, lon_idx - self.PAD + 2 : lon_idx + self.PAD + 4]
+        input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         #-- derive gnn data
         y = torch.tensor(self.target[k])
         edge_index = torch.tensor(self.data[space_idx]['edge_index'])
@@ -90,7 +92,7 @@ class Dataset_pr_cl(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self, target, self,data, self.mask = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.target, self.data = self._load_data_into_memory()
     
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -101,16 +103,17 @@ class Dataset_pr_cl(Dataset_pr):
             target = pickle.load(f)        
         with open(self.args.input_path + self.args.data_file, 'rb') as f:
             data = pickle.load(f)
+        self.length = len(idx_to_key)
         return input, idx_to_key, target, data
  
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
-        time_idx = k // self.SPACE_IDXS_DIM
-        space_idx = k % self.SPACE_IDXS_DIM
-        lat_idx = space_idx // self.LON_DIM
-        lon_idx = space_idx % self.LON_DIM
+        time_idx = k // self.space_idxs_dim
+        space_idx = k % self.space_idxs_dim
+        lat_idx = space_idx // self.lon_dim
+        lon_idx = space_idx % self.lon_dim
         #-- derive input
-        input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.PAD + 2 : lat_idx + self.PAD + 4, lon_idx - self.PAD + 2 : lon_idx + self.PAD + 4]
+        input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         #-- derive gnn data
         y = torch.tensor(self.target[k])
         edge_index = torch.tensor(self.data[space_idx]['edge_index'])

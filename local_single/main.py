@@ -1,5 +1,4 @@
 import wandb
-
 import numpy as np
 import os
 import sys
@@ -68,7 +67,11 @@ parser.add_argument('--performance', type=str, default=None)
 
 if __name__ == '__main__':
 
-    wandb.init(project="test-project", name="run-1")
+    # wand
+    os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+    os.environ['WANDB_USERNAME'] = 'valebl'
+    os.environ['WANDB_MODE'] = 'offline'
+    wandb.init(project="Classification", name="Run_0-3")
     
     torch.backends.cudnn.benchmark = True
 
@@ -92,8 +95,6 @@ if __name__ == '__main__':
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
     train_epoch = getattr(utils, 'train_epoch_'+net_arch)
 
-    #if args.loss_fn == 'weighted_mse_loss' or args.loss_fn == 'mse_loss_mod':
-    #    loss_fn = getattr(utils, args.loss_fn)
     if args.loss_fn == 'sigmoid_focal_loss':
         loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
     elif args.loss_fn == 'weighted_cross_entropy_loss':
@@ -119,7 +120,6 @@ if __name__ == '__main__':
             else:
                 f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size*torch.cuda.device_count()}")
 
-    #print(loss_fn.__getattribute__('reduction')) 
 
     #-- create the dataset
     dataset = Dataset(args)
@@ -195,8 +195,8 @@ if __name__ == '__main__':
 
     total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
         num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
-        validate_model=validate_model, validationloader=None, accelerator=accelerator, lr_scheduler=scheduler,
-        checkpoint_name=args.output_path+args.out_checkpoint_file, performance=args.performance, epoch_start=epoch_start)
+        accelerator=accelerator, lr_scheduler=scheduler, checkpoint_name=args.output_path+args.out_checkpoint_file,
+        performance=args.performance, epoch_start=epoch_start)
 
     end = time.time()
 
