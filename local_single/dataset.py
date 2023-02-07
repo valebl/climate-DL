@@ -56,7 +56,7 @@ class Dataset_pr_reg(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self.target, self,data, self.mask = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.target, self.data, self.mask = self._load_data_into_memory()
     
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:

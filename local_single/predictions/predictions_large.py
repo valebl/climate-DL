@@ -6,10 +6,8 @@ import torch
 from dataset import Clima_dataset as Dataset
 from dataset import custom_collate_fn_ae, custom_collate_fn_gnn
 from models_large import Encoder as Encoder
-#from models import Regressor_test as Regressor_GNN
-#from models import Classifier_test as Classifier_GNN
-from models import Regressor_test_large as Model_reg
-from models import Classifier_test_large as Model_cl
+from models import Regressor_test_large as Regressor
+from models import Classifier_test_large as Classifier
 
 from torch_geometric.data import Data, Batch
 

@@ -54,10 +54,10 @@ if __name__ == '__main__':
     year = 2016
     device = 'cuda:0'
 
-    #work_dir = "/m100_work/ICT22_ESP_0/vblasone/precipitation-maps/results_2016/"
-    #data_dir = "/m100_work/ICT22_ESP_0/vblasone/DATA/north_01-15/"
-    work_dir = "/work_dir/get_results/"
-    data_dir = "/data/north_01-15/"
+    work_dir = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/predictions/results_2016/"
+    data_dir = "/m100_work/ICT22_ESP_0/vblasone/DATA/north_01-15/"
+    #work_dir = "/work_dir/get_results/"
+    #data_dir = "/data/north_01-15/"
 
     log_file = f"log_{year}.txt"
 
@@ -70,10 +70,10 @@ if __name__ == '__main__':
     TIME_DIM = 140256
     SPATIAL_POINTS_DIM = LAT_DIM * LON_DIM
 
-    #checkpoint_cl = "/m100_work/ICT22_ESP_0/vblasone/precipitation-maps/221118/cl/ctd-4/checkpoint.pth"
-    #checkpoint_reg = "/m100_work/ICT22_ESP_0/vblasone/precipitation-maps/221118/reg/ctd-3/checkpoint.pth"
-    checkpoint_cl = "/work_dir/checkpoints/cl_small/checkpoint_3.pth"
-    checkpoint_reg = "/work_dir/checkpoints/reg_small/checkpoint_39.pth"
+    checkpoint_cl = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/cl/checkpoint_3.pth"
+    checkpoint_reg = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/reg/checkpoint_49.pth"
+    #checkpoint_cl = "/work_dir/checkpoints/cl_small/checkpoint_3.pth"
+    #checkpoint_reg = "/work_dir/checkpoints/reg_small/checkpoint_39.pth"
 
     #input_path = "/m100_work/ICT22_ESP_0/vblasone/DATA/"
     input_path = "/data/"

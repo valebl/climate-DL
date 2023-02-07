@@ -14,7 +14,7 @@ import utils
 import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
-from utils import train_model
+from utils import Trainer
 
 from accelerate import Accelerator
 
@@ -34,7 +34,7 @@ parser.add_argument('--checkpoint_ae_file', type=str)
 parser.add_argument('--weights_file', type=str, default=None)
 
 #-- output files
-parser.add_argument('--out_log_file', type=str, default='log.txt', help='log file')
+parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
 parser.add_argument('--out_checkpoint_file', type=str, default="checkpoint.pth")
 parser.add_argument('--out_loss_file', type=str, default="loss.csv")
 
@@ -71,8 +71,9 @@ if __name__ == '__main__':
     os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
     os.environ['WANDB_USERNAME'] = 'valebl'
     os.environ['WANDB_MODE'] = 'offline'
-    wandb.init(project="Regression", name="Run_0-49")
-    
+    #wandb.init(project="Regression", name=f"GPU_{torch.device}", group="ALL-GPUS")
+    wandb.init(project="Classification", name=f"GPU_{torch.device}", group="ALL-GPUS")
+
     torch.backends.cudnn.benchmark = True
 
     args = parser.parse_args()
@@ -93,8 +94,7 @@ if __name__ == '__main__':
     Model = getattr(models, args.model_name)
     Dataset = getattr(dataset, 'Dataset_pr_'+args.model_type)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
-    train_epoch = getattr(utils, 'train_epoch_'+net_arch)
-
+    
     if args.loss_fn == 'sigmoid_focal_loss':
         loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
     elif args.loss_fn == 'weighted_cross_entropy_loss':
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         accelerator = None
 
     if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.out_log_file, 'w') as f:
+        with open(args.output_path+args.log_file, 'w') as f:
             f.write(f"Cuda is available: {torch.cuda.is_available()}.\nStarting with pct_trainset={args.pct_trainset}, lr={args.lr}, "+
                 f"weight decay = {args.weight_decay} and epochs={args.epochs}."+
                 f"\nThere are {torch.cuda.device_count()} available GPUs.")
@@ -131,14 +131,14 @@ if __name__ == '__main__':
     trainset, testset = torch.utils.data.random_split(dataset, lengths=(len_trainset, len_testset), generator=generator)
     
     if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(args.output_path+args.log_file, 'a') as f:
             f.write(f'\nTrainset size = {len_trainset}.')
 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
 
     if accelerator is None or accelerator.is_main_process:
         total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %")
     
     model = Model()
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     #-- either load the model checkpoint or load the parameters for the encoder
     if args.load_ae_checkpoint is True and args.ctd_training is False:
-        model = load_encoder_checkpoint(model, args.checkpoint_ae_file, args.output_path, args.out_log_file, accelerator,
+        model = load_encoder_checkpoint(model, args.checkpoint_ae_file, args.output_path, args.log_file, accelerator,
                 fine_tuning=args.fine_tuning, net_names=net_names)
     elif args.load_ae_checkpoint is True and args.ctd_training is True:
         raise RuntimeError("Either load the ae parameters or continue the training.")
@@ -157,20 +157,19 @@ if __name__ == '__main__':
     else:
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
                 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
 
     if accelerator is not None:
         model, optimizer, trainloader = accelerator.prepare(model, optimizer, trainloader)
         #model, optimizer, trainloader, testloader, validationloader = accelerator.prepare(model, optimizer, trainloader, testloader, validationloader)
     else:
         model = model.cuda()
-
     
     epoch_start = 0
 
     if args.ctd_training:
         if accelerator is None or accelerator.is_main_process:
-            with open(args.output_path+args.out_log_file, 'a') as f:
+            with open(args.output_path+args.log_file, 'a') as f:
                 f.write("\nLoading the checkpoint to continue the training.")
         checkpoint = torch.load(args.checkpoint_ctd)
         try:
@@ -186,14 +185,15 @@ if __name__ == '__main__':
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if accelerator is None or accelerator.is_main_process: 
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nTotal number of trainable parameters: {total_params}.")
 
-    check_freezed_layers(model, args.output_path, args.out_log_file, accelerator)
+    check_freezed_layers(model, args.output_path, args.log_file, accelerator)
 
     start = time.time()
 
-    trainer = Trainer(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+    trainer = Trainer()
+    trainer.train(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
 
     #total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
     #    num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
@@ -203,8 +203,8 @@ if __name__ == '__main__':
     end = time.time()
 
     if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.out_log_file, 'a') as f:
+        with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nTraining completed in {end - start} seconds.")
             f.write(f"\nDONE!")
 
-
+    wandb.finish()
