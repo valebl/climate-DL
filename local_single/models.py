@@ -107,21 +107,9 @@ class Classifier(nn.Module):
             (GATv2Conv(3+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
-            #(GATv2Conv(256, 128, heads=2, aggr='mean'), 'x, edge_index -> x'),
-            #(geometric_nn.BatchNorm(256), 'x -> x'),
-            #nn.ReLU(),
             (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
-            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
-            #(geometric_nn.BatchNorm(128), 'x -> x'),
-            #nn.ReLU(),
-            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
-            #(geometric_nn.BatchNorm(128), 'x -> x'),
-            #nn.ReLU(),
-            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),
-            #(geometric_nn.BatchNorm(128), 'x -> x'),
-            #nn.ReLU(),
             #(GATv2Conv(128, 2, aggr='mean'), 'x, edge_index -> x'), # weighted cross entropy
             #nn.Softmax(dim=-1)                                      # weighted cross entropy
             (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'), # focal loss
