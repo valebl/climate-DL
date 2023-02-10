@@ -72,7 +72,7 @@ if __name__ == '__main__':
     os.environ['WANDB_USERNAME'] = 'valebl'
     os.environ['WANDB_MODE'] = 'offline'
     #wandb.init(project="Regression", name=f"GPU_{torch.device}", group="ALL-GPUS")
-    wandb.init(project="Classification", name=f"GPU_{torch.device}", group="ALL-GPUS")
+    wandb.init(project="Classification", group="ALL-GPUS")
 
     torch.backends.cudnn.benchmark = True
 

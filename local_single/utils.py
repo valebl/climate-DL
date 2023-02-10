@@ -120,7 +120,7 @@ class Trainer(object):
         wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
         if accelerator.is_main_process:
             with open(args.output_path+args.log_file, 'a') as f:
-                f.write(f"\nEpoch {epoch+1} completed in {time - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
+                f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
 
     def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
