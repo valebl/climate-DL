@@ -83,7 +83,7 @@ class Dataset_pr_reg(Dataset_pr):
         #-- derive gnn data
         y = torch.tensor(self.target[k])
         edge_index = torch.tensor(self.data[space_idx]['edge_index'])
-        x = torch.tensor(self.data[space_idx]['x'])
+        x = torch.tensor(self.data[space_idx]['x'][:,2])
         mask = torch.tensor(self.mask[k].astype(bool)) 
         data = Data(x=x, edge_index=edge_index, y=y, mask=mask)
         return input, data
@@ -117,7 +117,7 @@ class Dataset_pr_cl(Dataset_pr):
         #-- derive gnn data
         y = torch.tensor(self.target[k])
         edge_index = torch.tensor(self.data[space_idx]['edge_index'])
-        x = torch.tensor(self.data[space_idx]['x'])
+        x = torch.tensor(self.data[space_idx]['x'][:,2])
         data = Data(x=x, edge_index=edge_index, y=y)
         return input, data
 
