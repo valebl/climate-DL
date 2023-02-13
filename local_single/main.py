@@ -71,8 +71,8 @@ if __name__ == '__main__':
     os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
     os.environ['WANDB_USERNAME'] = 'valebl'
     os.environ['WANDB_MODE'] = 'offline'
-    #wandb.init(project="Regression", name=f"GPU_{torch.device}", group="ALL-GPUS")
-    wandb.init(project="Classification", group="ALL-GPUS")
+    wandb.init(project="Classifier-test", group="ALL-GPUS")
+    #wandb.init(project="Classification", group="ALL-GPUS")
 
     torch.backends.cudnn.benchmark = True
 
