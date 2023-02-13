@@ -103,8 +103,8 @@ class Classifier(nn.Module):
 
         #gnn
         self.gnn = geometric_nn.Sequential('x, edge_index', [
-            (geometric_nn.BatchNorm(3+512), 'x -> x'),
-            (GATv2Conv(3+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(1+512), 'x -> x'),
+            (GATv2Conv(1+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
             (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
@@ -116,7 +116,7 @@ class Classifier(nn.Module):
             nn.Sigmoid()                                            # focal loss
             ])
 
-    def forward(self, X_batch, data_batch, device):
+    def forward(self, X_batch, data_batch, device, num_node_features=1):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
         X_batch = self.encoder(X_batch.to(device))
@@ -127,9 +127,9 @@ class Classifier(nn.Module):
             
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.x[:,:3]
-            features[:,3:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1])).to(device)
+            features[:,0] = data.x
+            features[:,num_node_features:] = encoding[i,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
@@ -138,7 +138,7 @@ class Classifier(nn.Module):
 
 
 class Regressor(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
+    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2, num_node_features=1):
         super().__init__()
         self.output_dim = output_dim
         self.encoder = nn.Sequential(
@@ -172,8 +172,8 @@ class Regressor(nn.Module):
         )
 
         self.gnn = geometric_nn.Sequential('x, edge_index', [
-            (geometric_nn.BatchNorm(3+512), 'x -> x'),
-            (GATv2Conv(3+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'), 
+            (geometric_nn.BatchNorm(num_node_features+512), 'x -> x'),
+            (GATv2Conv(num_node_features+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
             #(GATv2Conv(256, 128, heads=2, aggr='mean'), 'x, edge_index -> x'), #
@@ -194,7 +194,7 @@ class Regressor(nn.Module):
             (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, device):
+    def forward(self, X_batch, data_batch, device, num_node_features=1):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
         X_batch = self.encoder(X_batch.to(device))
@@ -205,9 +205,10 @@ class Regressor(nn.Module):
             
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.x[:,:3]
-            features[:,3:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1])).to(device)
+            #features[:,:num_node_features] = data.x[:,:num_node_features]
+            features[:,0] = data.x
+            features[:,num_node_features:] = encoding[i,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
