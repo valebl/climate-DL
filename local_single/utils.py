@@ -96,8 +96,8 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])
             wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
         end = time.time()
-        wandb.log({'epoch':epoch, 'loss epoch': loss_meter.avg})
         if accelerator.is_main_process:
+            wandb.log({'epoch':epoch, 'loss epoch': loss_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
@@ -115,10 +115,11 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             performance = accuracy_binary_one(y_pred, y)
             performance_meter.update(val=performance, n=X.shape[0])
-            wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
+            if accelerator.is_main_process:
+                wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
         end = time.time()
-        wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
         if accelerator.is_main_process:
+            wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
@@ -134,10 +135,11 @@ class Trainer(object):
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
+            if accelerator.is_main_process:
+                wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
         end = time.time()
-        wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg})
         if accelerator.is_main_process:
+            wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
