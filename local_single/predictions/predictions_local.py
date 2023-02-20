@@ -18,36 +18,12 @@ def getitem(dataset, k):
     space_idx = k % dataset.SPACE_IDXS_DIM
     lat_idx = space_idx // dataset.LON_DIM
     lon_idx = space_idx % dataset.LON_DIM
-    #-- derive input
-    #if dataset.get_key:
-    #    return k
-    #if dataset.net_type == "gru" or "gnn":
-    #    input = dataset.input[time_idx - 24 : time_idx+1, :, :, lat_idx - dataset.PAD + 2 : lat_idx + dataset.PAD + 4, lon_idx - dataset.PAD + 2 : lon_idx + dataset.PAD + 4]
-    #else:
     input = dataset.input[time_idx - 24 : time_idx+1, :, :, lat_idx - dataset.PAD + 2 : lat_idx + dataset.PAD + 4, lon_idx - dataset.PAD + 2 : lon_idx + dataset.PAD + 4]
-    #-- derive gnn data
-    #if dataset.net_type == "cnn" or dataset.net_type == "gnn" or dataset.net_type == "gru":
-        #y = torch.tensor(dataset.target[k])
-        #if dataset.net_type == "cnn" or dataset.net_type == "gru":
-        #    return input
-        #else:
     edge_index = torch.tensor(dataset.data[space_idx]['edge_index'])
     x = torch.tensor(dataset.data[space_idx]['x'])
-            #if dataset.mask is not None:
-            #    mask = torch.tensor(dataset.mask[k].astype(bool))  #torch.where(y==0, False, True)
-            #    data = Data(x=x, edge_index=edge_index, mask=mask)
-            #else:
-    #try:
     y = torch.tensor(dataset.target[k])
-    #    #print(y.shape)
-    #    #sys.exit()
-    #except:
-    #    y = torch.full((x.shape[0],1), torch.nan)
     data = Data(x=x, edge_index=edge_index, y=y)
     return input, data
-    #else:
-    #    return input
-
 
 if __name__ == '__main__':
 
@@ -56,8 +32,6 @@ if __name__ == '__main__':
 
     work_dir = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/predictions/results_2016/"
     data_dir = "/m100_work/ICT22_ESP_0/vblasone/DATA/north_01-15/"
-    #work_dir = "/work_dir/get_results/"
-    #data_dir = "/data/north_01-15/"
 
     log_file = f"log_{year}.txt"
 
@@ -72,17 +46,12 @@ if __name__ == '__main__':
 
     checkpoint_cl = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/cl/checkpoint_3.pth"
     checkpoint_reg = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/reg/checkpoint_49.pth"
-    #checkpoint_cl = "/work_dir/checkpoints/cl_small/checkpoint_3.pth"
-    #checkpoint_reg = "/work_dir/checkpoints/reg_small/checkpoint_39.pth"
 
-    #input_path = "/m100_work/ICT22_ESP_0/vblasone/DATA/"
     input_path = "/data/"
     input_file = "input_standard.pkl"
     idx_to_key_file = "idx_to_key_test.pkl"
     data_file = "gnn_data_standard.pkl"
     target_file = "gnn_target_test.pkl"
-    #mask_file = "north/gnn_target_classes_north.pkl"
-    # checkpoint_file = "/home/vblasone/precipitation-maps/220920/ae-north/checkpoint_ae_north_e3.pth"
     
     with open(work_dir+log_file, 'a') as f:
         f.write("\nbuilding the dataset...")
@@ -129,9 +98,6 @@ if __name__ == '__main__':
 
     model_cl = model_cl.to(device)
 
-#    with open("/work_dir/get_results/idx_list_all.pkl", 'rb') as f:
-#        idx_list_all = pickle.load(f)
-
     y_pred_dict = dict()
     y_pred_reg_dict = dict()
     y_pred_cl_dict = dict()
@@ -144,10 +110,6 @@ if __name__ == '__main__':
 
     with open(work_dir+log_file, 'a') as f:
         f.write("\nstarting the loop...")
-
-    #for k in idx_list_all[year-2000-1]:
-
-    #test_keys = idx_list_test[year-2000-2] + idx_list_test[year-2000-1]
 
     for j, k in enumerate(test_keys):
         if i < 512:
@@ -191,38 +153,11 @@ if __name__ == '__main__':
         with open(work_dir+log_file, 'a') as f:
             f.write(f"\nbatch {j // 512 + 1} done")
 
-    #X, data = custom_collate_fn_gnn(batch)
-    #y_pred, y, batch_idxs = model(X, data, device)
-    #for ii, ki in enumerate(keys):
-    #    idxi = torch.where(batch_idxs == ii)
-    #    y_pred_dict[ki] = y_pred[idxi].detach().cpu().numpy()
-    #    y_dict[ki] = y[idxi].detach().cpu().numpy()
-    #with open(work_dir+log_file, 'a') as f:
-    #    f.write("\nbatch done")
-
     with open(work_dir+log_file, 'a') as f:
         f.write("\nwriting the files...")
 
     with open(work_dir+f"y_pred_{year}_small.pkl", 'wb') as f:
         pickle.dump(y_pred_dict, f)
-
-    #with open(work_dir+f"y_pred_{year}_reg.pkl", 'wb') as f:
-    #    pickle.dump(y_pred_reg_dict, f)
-
-    #with open(work_dir+f"y_pred_{year}_cl.pkl", 'wb') as f:
-    #    pickle.dump(y_pred_cl_dict, f)
-
-    #with open(work_dir+f"y_{year}.pkl", 'wb') as f:
-    #    pickle.dump(y_dict, f)
-
-    #metric = BinaryConfusionMatrix()
-    #metric(preds, target)
-
-    #with open(work_dir+f"batch_idxs_{year}.pkl", 'wb') as f:
-    #    pickle.dump(batch_idxs, f)
-
-    #with open(work_dir+f"mask_{year}.pkl", 'wb') as f:
-    #    pickle.dump(mask, f)
 
     with open(work_dir+log_file, 'a') as f:
         f.write("\ndone! :)")

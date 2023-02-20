@@ -6,8 +6,8 @@ import torch
 from dataset import Clima_dataset as Dataset
 from dataset import custom_collate_fn_ae, custom_collate_fn_gnn
 from models_large import Encoder as Encoder
-from models import Regressor_test_large as Regressor
-from models import Classifier_test_large as Classifier
+from models import Regressor_test_large as Model_reg
+from models import Classifier_test_large as Model_cl
 
 from torch_geometric.data import Data, Batch
 
@@ -59,14 +59,14 @@ if __name__ == '__main__':
     device = 'cuda:0'
 
     #work_dir = "/work_dir/220927/regression-gnn-north/ctd-20-30-0001/"
-    work_dir = "/work_dir/"
-    data_dir = "/data/north_01-15/"
+    work_dir = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_single/predictions/"
+    data_dir = "/m100_work/ICT23_ESP_C/vblasone/DATA/"
     #work_dir = "/home/vblasone/precipitation-maps/"
     #data_dir = "/home/vblasone/DATA/"
 
-    log_file = f"get_results_large/prova_{year}.txt"
+    log_file = f"/m100_work/ICTP23_ESP_C/vblasone/climate-DL/local_single/predictions/large/prova_{year}.txt"
 
-    checkpoint_cl = "/work_dir/checkpoints/cl_small/checkpoint_3.pth"
+    checkpoint_cl = "/m100_work/ICTP23_ESP_C/vblasone/climate-DL/local_single/cl-test/checkpoint_3.pth"
     checkpoint_reg = "/work_dir/checkpoints/reg_small/checkpoint_39.pth"
 
     input_path = "/data/"
@@ -170,6 +170,7 @@ if __name__ == '__main__':
 
     len_idx_list_time = len(idx_list_time[year-2000-1])
     y_pred_dict = dict()
+    y_pred_dict_cl = dict()
 
     idx_list = chain(idx_list_time[year-2000-1][-31*24:],idx_list_time[year-2000-1])
 
@@ -208,8 +209,7 @@ if __name__ == '__main__':
         data_reg = Data(x=features_reg, edge_index=torch.tensor(spatial_graph['edge_index']).to(device))
         y_pred_reg = model_gnn_reg(data_reg).detach().cpu().to(torch.float32)
 
-        #y_pred_dict[idx_time] = torch.argmax(y_pred_cl, dim=-1)
-        #y_pred_dict[idx_time] = y_pred_reg
+        y_pred_dict_cl[idx_time] = y_pred_cl
         y_pred_dict[idx_time] = y_pred_reg * y_pred_cl
 
         #print(y_pred_dict[idx_time].shape)
