@@ -6,13 +6,16 @@ import time
 import argparse
 import sys
 import torch
+import os
 
 from torch_geometric.data import Data
+
+from numba import jit
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
-parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/PREPROCESSED_TEST_CODE/')
+parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/climate-DL/preprocessing/')
 parser.add_argument('--log_file', type=str, default='log.txt')
 parser.add_argument('--target_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
 parser.add_argument('--topo_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
@@ -63,6 +66,33 @@ def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016):
     idx_time_train.sort(); idx_time_test.sort()
     return idx_time_train, idx_time_test
 
+'''
+@jit
+def derive_idxs_lists(valid_examples_space, idx_time_train, pr_sel_train_cl, pr_sel_train_reg, args):
+    idx_train_cl = np.empty((0), dtype=np.int32)
+    idx_train_reg = np.empty((0), dtype=np.int32)
+    for i in range(len(valid_examples_space)):
+        s = valid_examples_space[i]
+        mask = np.in1d(cell_idx_array, s)
+        pr_cl = pr_sel_train_cl[mask]
+        pr_reg = pr_sel_train_reg[mask]
+        for j in range(len(idx_time_train)):
+            t = idx_time_train[j]
+            if not np.isnan(pr_cl[:,t]).all():
+                k = t * space_low_res_dim + s
+                idx_train_cl = np.append(idx_train_cl, k)
+                if not np.isnan(pr_reg[:,t]).all():
+                    idx_train_reg = np.append(idx_train_reg, k)
+        if s % 10 == 0:
+            f = open(args.output_path + args.log_file, 'a')
+            f.write(f"\nSpace idx {s} done.")
+            f.close()
+            #total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
+            #write_log(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %", args)
+    #idx_train_cl = np.stack(idx_train_cl)  
+    #idx_train_reg = np.stack(idx_train_reg)
+    return idx_train_cl, idx_train_reg
+'''
 
 if __name__ == '__main__':
 
@@ -214,37 +244,81 @@ if __name__ == '__main__':
 
     idx_train_cl = []
     idx_train_reg = []
-    
+    mask_train_cl = []
+    mask_train_reg = []
+    mask_subgraphs = np.ones((space_low_res_dim, pr_sel.shape[0])) * np.nan
+
     cell_idx_array = torch.tensor(cell_idx_array).cuda()
     valid_examples_space = torch.tensor(valid_examples_space).cuda()
-    pr_sel_train_cl = torch.tensor(pr_sel_train_cl).cuda()
-    pr_sel_train_reg = torch.tensor(pr_sel_train_reg).cuda()
+    pr_sel_train_cl = torch.tensor(pr_sel_train_cl)
+    pr_sel_train_reg = torch.tensor(pr_sel_train_reg)
     
-    for s in valid_examples_space:
-        mask = torch.isin(cell_idx_array, s)
+    '''
+    def derive_idxs_lists(valid_examples_space, idx_time_train):
+        masks_list = [torch.isin(cell_idx_array, s) for s in valid_examples_space]
+        pr_cl_reg_list = [[pr_sel_train_cl[mask], pr_sel_train_reg[mask]] for mask in masks_list]
         for t in idx_time_train:
-            if not torch.isnan(pr_sel_train_cl[mask][:,t]).all():
-                k = t * space_low_res_dim + s
-                idx_train_cl.append(k)
-                if not torch.isnan(pr_sel_train_reg[mask][:,t]).all():
-                    idx_train_reg.append(k)
-        if s % 10 == 0:
-            write_log(f"\nSpace idx {s} done.", args)
+            valid_s_cl_list = [torch.isnan(pr_cl_reg_list[i][:,t]).all()
+    '''
+    
+    with torch.no_grad():
+        for s in valid_examples_space:
+            mask = torch.isin(cell_idx_array, s)
+            mask_subgraphs[s,:] = mask.cpu().numpy()
+            pr_cl = pr_sel_train_cl[mask].cuda()
+            pr_reg = pr_sel_train_reg[mask].cuda()
+            for t in idx_time_train:
+                nan_cl = torch.isnan(pr_cl[:,t])
+                if not nan_cl.all():
+                    k = (t * space_low_res_dim + s).cpu()
+                    mask_cl = torch.clone(mask)
+                    mask_cl[mask==1] = ~nan_cl
+                    idx_train_cl.append(k)
+                    mask_cl = mask_cl.cpu()
+                    mask_train_cl.append(mask_cl)
+                    nan_reg = torch.isnan(pr_reg[:,t])
+                    if not nan_reg.all():
+                        mask_reg = torch.clone(mask)
+                        mask_reg[mask==1] = ~nan_reg
+                        mask_reg = mask_reg.cpu()
+                        idx_train_reg.append(k)
+                        mask_train_reg.append(mask_reg)
+            torch.cuda.empty_cache()
+            if s % 10 == 0:
+                write_log(f"\nSpace idx {s} done.", args)
+                #total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
+                #write_log(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %", args)
+            #del mask; del pr_cl; del pr_reg; del nan_cl; del nan_reg; del k;
+        
+    #idx_train_cl = torch.stack(idx_train_cl)
+    #idx_train_cl = idx_train_cl.cpu().numpy()
 
-    idx_train_cl = torch.stack(idx_train_cl, dtype=int)
-    idx_train_cl = idx_train_cl.cpu().numpy()
+    #idx_train_reg = torch.stack(idx_train_reg)
+    #idx_train_reg = idx_train_reg.cpu().numpy()
 
-    idx_train_reg = torch.stack(idx_train_reg, dtype=int)
-    idx_train_reg = idx_train_reg.cpu().numpy()
+    idx_train_cl = np.array(idx_train_cl)
+    idx_train_reg = np.array(idx_train_reg)
+
+    mask_train_cl = torch.stack(mask_train_cl)
+    mask_train_cl = mask_train_cl.cpu().numpy
+
+    mask_train_reg = torch.stack(mask_train_reg)
+    mask_train_reg = mask_train_reg.cpu().numpy
 
     with open('idx_train_cl.pkl', 'wb') as f:
         pickle.dump(idx_train_cl, f)
 
     with open('idx_train_reg.pkl', 'wb') as f:
         pickle.dump(idx_train_reg, f)
+    
+    with open('mask_train_cl.pkl', 'wb') as f:
+        pickle.dump(mask_train_cl, f)
 
+    with open('mask_train_reg.pkl', 'wb') as f:
+        pickle.dump(mask_train_reg, f)
+    
     write_log(f"\nCreating the idx array took {time.time() - start} seconds", args)    
 
-    write_log("\nDone!")
+    write_log("\nDone!", args)
 
 
