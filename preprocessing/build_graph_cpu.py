@@ -75,7 +75,7 @@ if __name__ == '__main__':
         idx_time_years = pickle.load(f)
 
     idx_time_train, idx_time_test = subdivide_train_test_time_indexes(idx_time_years)
-    time_train_dim = len(range(idx_time_train.min(), idx_time_train.max()+1))
+    time_train_dim = len(range(min(idx_time_train), max(idx_time_train)+1))
 
     write_log("\nStart!", args, 'w')
 
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     lon_sel, lat_sel, z_sel, pr_sel = cut_window(args.lon_min, args.lon_max, args.lat_min, args.lat_max, lon, lat, z, pr, args.time_dim)
     n_nodes = pr_sel.shape[1]
 
-    write_log("\nDone! Window is [{lon_sel.min()}, {lon_sel.max()}] x [{lat_sel.min()}, {lat_sel.max()}] with {n_nodes} nodes.", args)
+    write_log(f"\nDone! Window is [{lon_sel.min()}, {lon_sel.max()}] x [{lat_sel.min()}, {lat_sel.max()}] with {n_nodes} nodes.", args)
 
     cell_idx_array = np.zeros(n_nodes) # maps each node to the corresponding low_res cell idx
 
@@ -151,6 +151,7 @@ if __name__ == '__main__':
     z_sel = z_sel[mask_graph_cells_space]
     pr_sel = pr_sel[:, mask_graph_cells_space]
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
+    n_nodes = cell_idx_array.shape[0]
 
     threshold = 0.1 # mm
     pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
@@ -223,33 +224,34 @@ if __name__ == '__main__':
     #pr_sel_train_cl = torch.tensor(pr_sel_train_cl)
     #pr_sel_train_reg = torch.tensor(pr_sel_train_reg)
     
+    nan_cl = np.isnan(pr_sel_train_cl)
+    nan_reg = np.isnan(pr_sel_train_reg)
+    
     k = 0
     for s in range(space_low_res_dim):
         i = s // space_low_res_dim
         j = s % space_low_res_dim
         idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
-        mask_1 = np.in1d(cell_idx_array, s)
+        mask_1 = np.in1d(cell_idx_array, s) # shape = (n_nodes)
         mask_1_cell_subgraphs[cell_idx,:] = mask_1
         if s in valid_examples_space:
             k += 1
             mask_9_cells_subgraphs[cell_idx,:] = np.in1d(cell_idx_array, idx_list)
+            mask_train_cl[t,:] = nan_cl[mask_1,t]
+            mask_train_reg[t,:] = nan_reg[mask_1,t]
             #mask = np.in1d(cell_idx_array, s)
             #mask_subgraphs[s,:] = mask
             #pr_cl = pr_sel_train_cl[mask_1]
             #pr_reg = pr_sel_train_reg[mask_1]
-            nan_cl = np.isnan(pr_sel_train_cl[s,:])
-            nan_reg = np.isnan(pr_sel_train_reg[s,:])
             for t in idx_time_train:
-                if not nan_cl[:,t].all():
+                if not nan_cl[mask_1,t].all():
                     k = t * space_low_res_dim + s
-                    mask_train_cl[t,:] = nan_cl[:,t]
                     #mask_cl = np.copy(mask_1)
                     #mask_cl[mask_1==1] = ~nan_cl
                     idx_train_cl.append(k)
                     #mask_train_cl.append(mask_cl)
                     #nan_reg = np.isnan(pr_reg[:,t])
-                    if not nan_reg[:,t].all():
-                        mask_train_reg[t,:] = nan_reg[:,t]
+                    if not nan_reg[mask_1,t].all():
                         #mask_reg = np.copy(mask)
                         #mask_reg[mask==1] = ~nan_reg
                         idx_train_reg.append(k)
