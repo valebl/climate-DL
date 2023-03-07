@@ -101,13 +101,13 @@ class Trainer(object):
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, alpha=0.95, gamma=2):
+    def _train_epoch_gnn(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, alpha=0.95, gamma=2):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
         start = time.time()
         for X, data in dataloader:
             optimizer.zero_grad()
-            y_pred, y, _  = model(X, data, accelerator.device)
+            y_pred, y, _  = model(X, data)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
@@ -124,7 +124,7 @@ class Trainer(object):
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
 
-    def _train_epoch_gnn(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
+    def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
         loss_meter = AverageMeter()
         start = time.time()
         for X, data in dataloader:
