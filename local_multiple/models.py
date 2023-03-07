@@ -102,21 +102,21 @@ class Classifier(nn.Module):
         )
 
         #gnn
-        self.gnn = geometric_nn.Sequential('x, edge_index', [
+        self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
             (geometric_nn.BatchNorm(1+512), 'x -> x'),
-            (GATv2Conv(1+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (GATv2Conv(1+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
-            (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
+            (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
             #(GATv2Conv(128, 2, aggr='mean'), 'x, edge_index -> x'), # weighted cross entropy
             #nn.Softmax(dim=-1)                                      # weighted cross entropy
-            (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'), # focal loss
+            (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'), # focal loss
             nn.Sigmoid()                                            # focal loss
             ])
-
-    def forward(self, X_batch, data_batch, device, num_node_features=1):
+        
+    def forward(self, X_batch, data_batch, num_node_features=1, encoding_dim=512):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
         X_batch = self.encoder(X_batch) #.to(device))
@@ -124,17 +124,18 @@ class Classifier(nn.Module):
         encoding, _ = self.gru(X_batch)
         encoding = encoding.reshape(s[0]*s[1], s[2]*self.output_dim)
         encoding = self.dense(encoding)
-            
+        encoding = encoding.reshape(s[0], s[1], encoding_dim)
+
         for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1]))
+            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[-1])).cuda()
             features[:,0] = data.x
-            features[:,num_node_features:] = encoding[i,:]
+            for j, idx in enumerate(data.idx_list):
+                features[data.low_res==idx,num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        data = data.to(device)
-        return y_pred, data_batch.y, data_batch.batch                           # focal loss
-        #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        return y_pred, data_batch.y[data_batch.train_mask], data_batch.batch                           # focal loss
+            #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
 class Regressor(nn.Module):
@@ -171,49 +172,37 @@ class Regressor(nn.Module):
             nn.ReLU()
         )
 
-        self.gnn = geometric_nn.Sequential('x, edge_index', [
+        self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
             (geometric_nn.BatchNorm(num_node_features+512), 'x -> x'),
-            (GATv2Conv(num_node_features+512, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'), 
+            (GATv2Conv(num_node_features+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
-            nn.ReLU(),
-            #(GATv2Conv(256, 128, heads=2, aggr='mean'), 'x, edge_index -> x'), #
-            #(geometric_nn.BatchNorm(256), 'x -> x'),                           #
-            #nn.ReLU(),                                                         #
-            (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
+            nn.ReLU(),                                                     
+            (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
-            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),        #
-            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
-            #nn.ReLU(),                                                       #
-            #GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),         #
-            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
-            #nn.ReLU(),                                                       #
-            #(GATv2Conv(128, 128, aggr='mean'), 'x, edge_index -> x'),        #
-            #(geometric_nn.BatchNorm(128), 'x -> x'),                         #
-            #nn.ReLU(),                                                       #
-            (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'),
+            (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, device, num_node_features=1):
+    def forward(self, X_batch, data_batch, device, num_node_features=1, encoding_dim=512):
         s = X_batch.shape
-        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
-        X_batch = self.encoder(X_batch.to(device))
-        X_batch = X_batch.reshape(s[0], s[1], self.output_dim)
+        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
+        X_batch = self.encoder(X_batch) #.to(device))
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.output_dim)
         encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0], s[1]*self.output_dim)
+        encoding = encoding.reshape(s[0]*s[1], s[2]*self.output_dim)
         encoding = self.dense(encoding)
-            
+        encoding = encoding.reshape(s[0], s[1], encoding_dim)
+
         for i, data in enumerate(data_batch):
-            data = data.to(device)
-            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1])).to(device)
-            #features[:,:num_node_features] = data.x[:,:num_node_features]
+            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[-1])).cuda()
             features[:,0] = data.x
-            features[:,num_node_features:] = encoding[i,:]
+            for j, idx in enumerate(data.idx_list):
+                features[data.low_res==idx,num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index)
-        mask = data_batch.mask.squeeze()
-        return y_pred.squeeze()[mask], data_batch.y.squeeze()[mask], data_batch.batch[mask]
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        return y_pred.squeeze(), data_batch.y.squeeze(), data_batch.batch              
+
 
 class Classifier_test(Classifier):
 
