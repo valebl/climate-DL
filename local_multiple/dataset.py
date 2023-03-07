@@ -57,12 +57,7 @@ class Dataset_gnn(Dataset_pr):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.mask_1_cell, self.mask_9_cells = self._load_data_into_memory()
-        #self.target = self.target.to(self.device)
-        #self.graph = self.graph.to(self.device)
-        #self.mask_target = self.mask_target.to(self.device)
-        #self.mask_1_cell = self.mask_1_cell.to(self.device)
-        #self.mask_9_cells = self.mask_9_cells.to(self.device)
-
+        
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
             input = pickle.load(f)
