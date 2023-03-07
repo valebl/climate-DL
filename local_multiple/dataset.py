@@ -57,7 +57,7 @@ class Dataset_gnn(Dataset_pr):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.mask_1_cell, self.mask_9_cells = self._load_data_into_memory()
-        
+
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
             input = pickle.load(f)
@@ -83,7 +83,6 @@ class Dataset_gnn(Dataset_pr):
         space_idx = k % self.space_low_res_dim
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
-        print(idx, k, time_idx, space_idx, lat_idx, lon_idx)
         #-- derive input
         input = torch.zeros((9, 25, 5, 5, 6, 6))
         lon_lat_idx_list = torch.tensor([[ii, jj] for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
