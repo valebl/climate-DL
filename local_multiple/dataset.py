@@ -31,7 +31,7 @@ class Dataset_ae(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key = self._load_data_into_memory(self.args)
+        self.input, self.idx_to_key = self._load_data_into_memory()
     
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -48,7 +48,9 @@ class Dataset_ae(Dataset_pr):
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
         #-- derive input
-        input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
+        #print(space_idx, lat_idx, lon_idx)
+        input = torch.zeros((25, 5, 5, 6, 6))
+        input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input
 
 
@@ -92,10 +94,10 @@ class Dataset_gnn(Dataset_pr):
         #-- derive gnn data
         mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
         #print(mask_subgraph)
-        subgraph = self.graph.subgraph(subset=torch.tensor(mask_subgraph))
+        subgraph = self.graph.subgraph(subset=mask_subgraph)
         mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
-        y = self.target[mask_y_nodes, time_idx] # shape = (n_nodes_train,)
+        y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y
         cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         subgraph["idx_list"] = cell_idx_list
@@ -103,7 +105,7 @@ class Dataset_gnn(Dataset_pr):
 
 
 def custom_collate_fn_ae(batch):
-    input = np.array(batch)
+    input = torch.stack(batch)
     input = default_convert(input)
     return input
 

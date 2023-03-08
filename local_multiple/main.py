@@ -26,12 +26,13 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-parser.add_argument('--data_file', type=str, default=None)
 parser.add_argument('--target_file', type=str, default=None)
-parser.add_argument('--mask_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
 parser.add_argument('--checkpoint_ae_file', type=str)
-parser.add_argument('--weights_file', type=str, default=None)
+parser.add_argument('--graph_file', type=str) 
+parser.add_argument('--mask_target_file', type=str)
+parser.add_argument('--mask_1_cell_file', type=str)
+parser.add_argument('--mask_9_cells_file', type=str) 
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -64,19 +65,20 @@ parser.add_argument('--model_name', type=str)
 parser.add_argument('--loss_fn', type=str, default="mse_loss")
 parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
+parser.add_argument('--wandb_project_name', type=str)
 
 if __name__ == '__main__':
+
+    args = parser.parse_args()
 
     # wand
     os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
     os.environ['WANDB_USERNAME'] = 'valebl'
     os.environ['WANDB_MODE'] = 'offline'
-    wandb.init(project="Classifier-test", group="ALL-GPUS")
+    wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
     #wandb.init(project="Classification", group="ALL-GPUS")
 
     torch.backends.cudnn.benchmark = True
-
-    args = parser.parse_args()
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
@@ -86,13 +88,13 @@ if __name__ == '__main__':
     else:
         accelerator = None
 
-    if args.model_type == 'cl' or 'reg':
+    if args.model_type == 'cl' or args.model_type == 'reg':
         net_arch = 'gnn'
     else:
         net_arch = 'ae'
 
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, 'Dataset_pr_'+args.model_type)
+    Dataset = getattr(dataset, 'Dataset_'+net_arch)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
     
     if args.loss_fn == 'sigmoid_focal_loss':
