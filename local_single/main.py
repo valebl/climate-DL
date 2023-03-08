@@ -105,11 +105,6 @@ if __name__ == '__main__':
     else:
         loss_fn = getattr(nn.functional, args.loss_fn)
     
-    if args.use_accelerate is True:
-        accelerator = Accelerator()
-    else:
-        accelerator = None
-
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'w') as f:
             f.write(f"Cuda is available: {torch.cuda.is_available()}.\nStarting with pct_trainset={args.pct_trainset}, lr={args.lr}, "+

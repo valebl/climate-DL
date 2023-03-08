@@ -119,20 +119,20 @@ class Classifier(nn.Module):
     def forward(self, X_batch, data_batch, device, num_node_features=1):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
-        X_batch = self.encoder(X_batch.to(device))
+        X_batch = self.encoder(X_batch) #.to(device))
         X_batch = X_batch.reshape(s[0], s[1], self.output_dim)
         encoding, _ = self.gru(X_batch)
         encoding = encoding.reshape(s[0], s[1]*self.output_dim)
         encoding = self.dense(encoding)
             
         for i, data in enumerate(data_batch):
-            data = data.to(device)
-            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1])).to(device)
+            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[1]))
             features[:,0] = data.x
             features[:,num_node_features:] = encoding[i,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
+        data = data.to(device)
         return y_pred, data_batch.y, data_batch.batch                           # focal loss
         #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
