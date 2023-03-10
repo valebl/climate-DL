@@ -14,7 +14,7 @@ import utils
 import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
-from utils import Trainer
+from utils import Trainer, Get_encoder
 
 from accelerate import Accelerator
 
@@ -27,12 +27,12 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
 parser.add_argument('--target_file', type=str, default=None)
-parser.add_argument('--idx_file', type=str)
-parser.add_argument('--checkpoint_ae_file', type=str)
-parser.add_argument('--graph_file', type=str) 
-parser.add_argument('--mask_target_file', type=str)
-parser.add_argument('--mask_1_cell_file', type=str)
-parser.add_argument('--mask_9_cells_file', type=str) 
+parser.add_argument('--idx_file', type=str, default=None)
+parser.add_argument('--checkpoint_file', type=str, default=None)
+parser.add_argument('--graph_file', type=str, default=None) 
+parser.add_argument('--mask_target_file', type=str, default=None)
+parser.add_argument('--mask_1_cell_file', type=str, default=None)
+parser.add_argument('--mask_9_cells_file', type=str, default=None) 
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -48,8 +48,8 @@ parser.add_argument('--lr', type=float, default=0.01, help='initial learning rat
 parser.add_argument('--weight_decay', type=float, default=5e-4, help='weight decay (wd)')
 parser.add_argument('--fine_tuning',  action='store_true')
 parser.add_argument('--no-fine_tuning', dest='fine_tuning', action='store_false')
-parser.add_argument('--load_ae_checkpoint',  action='store_true')
-parser.add_argument('--no-load_ae_checkpoint', dest='load_ae_checkpoint', action='store_false')
+parser.add_argument('--load_checkpoint',  action='store_true')
+parser.add_argument('--no-load_checkpoint', dest='load_checkpoint', action='store_false')
 
 #-- boolean
 parser.add_argument('--checkpoint_ctd', type=str, help='checkpoint to load to continue')
@@ -66,17 +66,20 @@ parser.add_argument('--loss_fn', type=str, default="mse_loss")
 parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
+parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
+
 
 if __name__ == '__main__':
 
     args = parser.parse_args()
 
     # wand
-    os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
-    os.environ['WANDB_USERNAME'] = 'valebl'
-    os.environ['WANDB_MODE'] = 'offline'
-    wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
-    #wandb.init(project="Classification", group="ALL-GPUS")
+    if args.mode == 'train':
+        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+        os.environ['WANDB_USERNAME'] = 'valebl'
+        os.environ['WANDB_MODE'] = 'offline'
+        wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
+        #wandb.init(project="Classification", group="ALL-GPUS")
 
     torch.backends.cudnn.benchmark = True
 
@@ -90,81 +93,94 @@ if __name__ == '__main__':
 
     if args.model_type == 'cl' or args.model_type == 'reg':
         net_arch = 'gnn'
-    else:
+    elif args.model_type == 'ae':
         net_arch = 'ae'
+    elif args.model_type == 'e':
+        net_arch = 'e'
 
     Model = getattr(models, args.model_name)
     Dataset = getattr(dataset, 'Dataset_'+net_arch)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
-    
-    if args.loss_fn == 'sigmoid_focal_loss':
-        loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
-    elif args.loss_fn == 'weighted_cross_entropy_loss':
-        if accelerator is None:
-            loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).cuda())
-        else:
-            loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).to(accelerator.device))
-    else:
-        loss_fn = getattr(nn.functional, args.loss_fn)
-    
+   
+    model = Model()
+    epoch_start = 0
+
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'w') as f:
-            f.write(f"Cuda is available: {torch.cuda.is_available()}.\nStarting with pct_trainset={args.pct_trainset}, lr={args.lr}, "+
-                f"weight decay = {args.weight_decay} and epochs={args.epochs}."+
-                f"\nThere are {torch.cuda.device_count()} available GPUs.")
-            if accelerator is None:
-                f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size}")
-            else:
-                f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size*torch.cuda.device_count()}")
+            f.write("Starting the training...")
+            f.write(f"Cuda is available: {torch.cuda.is_available()}. There are {torch.cuda.device_count()} available GPUs.")
+#-----------------------------------------------------
+#-------------------- TRAIN UTILS --------------------
+#-----------------------------------------------------
 
+    if args.mode == 'train':
+
+        if args.loss_fn == 'sigmoid_focal_loss':
+            loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
+        elif args.loss_fn == 'weighted_cross_entropy_loss':
+            if accelerator is None:
+                loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).cuda())
+            else:
+                loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]).to(accelerator.device))
+        else:
+            loss_fn = getattr(nn.functional, args.loss_fn)    
+        
+        if accelerator is None or accelerator.is_main_process:
+            with open(args.output_path+args.log_file, 'a') as f:
+                f.write(f"\nStarting with pct_trainset={args.pct_trainset}, lr={args.lr}, "+
+                    f"weight decay = {args.weight_decay} and epochs={args.epochs}.")
+                if accelerator is None:
+                    f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size}")
+                else:
+                    f.write(f"\nModel = {args.model_name}, batch size = {args.batch_size*torch.cuda.device_count()}")
+
+        #-- define the optimizer and trainable parameters
+        if not args.fine_tuning:
+            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
+        else:
+            optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+                
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
+
+#-----------------------------------------------------
+#-------------- DATASET AND DATALOADER ---------------
+#-----------------------------------------------------
 
     #-- create the dataset
     dataset = Dataset(args)
 
-    #-- split into trainset and testset
-    generator=torch.Generator().manual_seed(42)
-    len_trainset = int(len(dataset) * args.pct_trainset)
-    len_testset = len(dataset) - len_trainset
-    trainset, testset = torch.utils.data.random_split(dataset, lengths=(len_trainset, len_testset), generator=generator)
-    
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
-            f.write(f'\nTrainset size = {len_trainset}.')
+            f.write(f'\nTrainset size = {dataset.length}.')
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
+    if args.mode == 'train':
+        trainloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
+    elif args.mode == 'get_encoding':
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     if accelerator is None or accelerator.is_main_process:
         total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %")
     
-    model = Model()
-    net_names = ["encoder.", "gru.", "linear."]
 
+#-----------------------------------------------------
+#------------------ LOAD PARAMETERS ------------------
+#-----------------------------------------------------
+
+    if args.mode == 'train':
+        net_names = ["encoder.", "gru."]
+    elif args.mode == 'get_encoding':
+        net_names = ["encoder.", "gru.", "dense."]
+    
     #-- either load the model checkpoint or load the parameters for the encoder
-    if args.load_ae_checkpoint is True and args.ctd_training is False:
-        model = load_encoder_checkpoint(model, args.checkpoint_ae_file, args.output_path, args.log_file, accelerator,
+    if args.load_checkpoint is True and args.ctd_training is False:
+        model = load_encoder_checkpoint(model, args.checkpoint_file, args.output_path, args.log_file, accelerator=accelerator,
                 fine_tuning=args.fine_tuning, net_names=net_names)
-    elif args.load_ae_checkpoint is True and args.ctd_training is True:
+    elif args.load_checkpoint is True and args.ctd_training is True:
         raise RuntimeError("Either load the ae parameters or continue the training.")
 
-    #-- define the optimizer and trainable parameters
-    if not args.fine_tuning:
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
-    else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-                
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
-
-    if accelerator is not None:
-        model, optimizer, trainloader = accelerator.prepare(model, optimizer, trainloader)
-        #model, optimizer, trainloader, testloader, validationloader = accelerator.prepare(model, optimizer, trainloader, testloader, validationloader)
-    else:
-        model = model.cuda()
-    
-    epoch_start = 0
-
-    if args.ctd_training:
+    if args.mode == 'train' and args.ctd_training:
         if accelerator is None or accelerator.is_main_process:
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write("\nLoading the checkpoint to continue the training.")
@@ -180,17 +196,29 @@ if __name__ == '__main__':
         optimizer.load_state_dict(checkpoint["optimizer"])
         epoch_start = checkpoint["epoch"] + 1
 
+    if accelerator is not None:
+        if args.mode == 'train':
+            model, optimizer, trainloader = accelerator.prepare(model, optimizer, trainloader)
+        elif args.mode == 'get_encoding':
+            model, dataloader = accelerator.prepare(model, dataloader)
+    else:
+        model = model.cuda()
+    
+    check_freezed_layers(model, args.output_path, args.log_file, accelerator)
+
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if accelerator is None or accelerator.is_main_process: 
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nTotal number of trainable parameters: {total_params}.")
 
-    check_freezed_layers(model, args.output_path, args.log_file, accelerator)
-
     start = time.time()
-
-    trainer = Trainer()
-    trainer.train(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+    
+    if args.mode == 'train':
+        trainer = Trainer()
+        trainer.train(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+    elif args.mode == 'get_encoding':
+        encoder = Get_encoder()
+        encoder.get_encoding(model, dataloader, accelerator, args)
 
     #total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
     #    num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
@@ -201,7 +229,8 @@ if __name__ == '__main__':
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
-            f.write(f"\nTraining completed in {end - start} seconds.")
+            f.write(f"\nCompleted in {end - start} seconds.")
             f.write(f"\nDONE!")
-
-    wandb.finish()
+    
+    if args.mode == 'train':
+        wandb.finish()

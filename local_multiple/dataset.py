@@ -42,9 +42,12 @@ class Dataset_ae(Dataset_pr):
         return input, idx_to_key
 
     def __getitem__(self, idx):
-        k = self.idx_to_key[idx]   
-        time_idx = k // self.space_low_res_dim
-        space_idx = k % self.space_low_res_dim
+        #k = self.idx_to_key[idx]   
+        #time_idx = k // self.space_low_res_dim
+        #space_idx = k % self.space_low_res_dim
+        k = self.idx_to_key[idx]
+        time_idx = k[1]
+        space_idx = k[0]
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
         #-- derive input
@@ -53,6 +56,17 @@ class Dataset_ae(Dataset_pr):
         input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input
 
+class Dataset_e(Dataset_ae):
+    
+    def __getitem__(self, idx):
+        k = self.idx_to_key[idx]
+        time_idx = k[1]
+        space_idx = k[0]
+        lat_idx = space_idx // self.lon_low_res_dim
+        lon_idx = space_idx % self.lon_low_res_dim
+        input = torch.zeros((25, 5, 5, 6, 6))
+        input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
+        return input, k 
 
 class Dataset_gnn(Dataset_pr):
 
@@ -108,6 +122,15 @@ def custom_collate_fn_ae(batch):
     input = torch.stack(batch)
     input = default_convert(input)
     return input
+
+
+def custom_collate_fn_e(batch):
+    input = torch.stack([item[0] for item in batch])
+    idxs = [item[1] for item in batch] 
+    input = default_convert(input)
+    idxs = default_convert(idxs)
+    idxs = torch.stack(idxs)
+    return input, idxs
 
 def custom_collate_fn_gnn(batch):
     input = torch.stack([item[0] for item in batch]) # shape = (batch_size, 9, 25, 5, 5, 6, 6)

@@ -47,7 +47,7 @@ def accuracy_binary_two(prediction, target):
 def weighted_mse_loss(input_batch, target_batch, weights):
     return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
 
-def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, fine_tuning=True, net_names=['encoder', 'gru', 'linear']):
+def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning):
     if accelerator is None or accelerator.is_main_process:
         with open(log_path+log_file, 'a') as f:
             f.write("\nLoading encoder parameters.") 
@@ -160,6 +160,24 @@ class Trainer(object):
                     "epoch": epoch,
                     }
                 torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
+
+
+class Get_encoder(object):
+
+    def get_encoding(self, model, dataloader, accelerator, args, space_dim=496, time_dim=130727):
+        model.eval()
+        encodings_array = torch.tensor((space_dim, time_dim))
+        with torch.no_grad():
+            for X, idxs in dataloader: # idxs.shape = (batch_dim, 2)
+                encodings = model(X)
+                with open(args.output_path+"idxs.pkl", 'wb') as f:
+                    pickle.dump(idxs, f)
+                encodings_array[idxs[:,0], idxs[:,1]] = encodings
+                print("Done")
+                sys.exit()
+        with open(args.output_path+"encodings_array.pkl", 'wb') as f:
+            pickle.dump(encodings_array, f)
+
 
 '''
 #----- VALIDATION ------

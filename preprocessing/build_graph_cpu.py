@@ -59,11 +59,13 @@ def write_log(s, args, mode='a'):
 def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016):
     idx_time_train = []
     idx_time_test = []
-    for idx_time_y in idx_time_years[24:first_test_year-2000-3]:
+    for idx_time_y in idx_time_years[:first_test_year-2000-3]:
         idx_time_train += idx_time_y
     idx_time_train += idx_time_years[first_test_year-2000-2][:-31*24]
     idx_time_test = idx_time_years[first_test_year-2000-2][-31*24:] + idx_time_years[-1]
     idx_time_train.sort(); idx_time_test.sort()
+    for i in range(24):
+        idx_time_train.remove(i)
     return idx_time_train, idx_time_test
 
 
@@ -219,7 +221,7 @@ if __name__ == '__main__':
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold)
     
-    idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
+    idx_train_ae = [[s, t] for s in range(space_low_res_dim) for t in idx_time_train]
     idx_train_ae = np.array(idx_train_ae)
 
     with open('idx_train_ae.pkl', 'wb') as f:

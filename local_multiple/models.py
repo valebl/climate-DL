@@ -10,6 +10,7 @@ class Autoencoder(nn.Module):
     def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
         super().__init__() 
         self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -18,23 +19,24 @@ class Autoencoder(nn.Module):
             nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),   
+            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
             nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(256),
             nn.ReLU(),
-            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),   
+            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
             nn.Flatten(),
             nn.Linear(2048, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, output_dim),
             nn.BatchNorm1d(output_dim),
-            nn.ReLU()            
-            )   
-
-        self.gru = nn.Sequential(
-            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),        
+            nn.ReLU()
             )
+
+        # define the decoder modules
+        self.gru = nn.Sequential(
+            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
+        )
 
         self.decoder = nn.Sequential(
             nn.Linear(output_dim, 512),
@@ -57,12 +59,59 @@ class Autoencoder(nn.Module):
         s = X.shape
         X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
         X = self.encoder(X)
-        X = X.reshape(s[0], s[1], self.output_dim)
+        X = X.reshape(s[0], s[1], self.output_dim) # (64,25,256)
         out, h = self.gru(X)
-        out = out.reshape(s[0]*s[1], self.output_dim)
+        out = out.reshape(s[0]*s[1], self.output_dim) # (64,25*256) = (64,6400)
         out = self.decoder(out)
         out = out.reshape(s[0], s[1], s[2], s[3], s[4], s[5])
         return out
+
+class Encoder(nn.Module):
+    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
+        super().__init__()
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+
+        self.encoder = nn.Sequential(
+            nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
+            nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
+            nn.Flatten(),
+            nn.Linear(2048, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, output_dim),
+            nn.BatchNorm1d(output_dim),
+            nn.ReLU()
+            )
+
+        # define the decoder modules
+        self.gru = nn.Sequential(
+            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True)
+        )
+
+        self.dense = nn.Sequential(
+            nn.Linear(self.hidden_dim*25, 512),
+            nn.ReLU()
+        )
+
+    def forward(self, X, encoding_dim=512):
+        s = X.shape
+        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
+        X = self.encoder(X)
+        X = X.reshape(s[0], s[1], self.output_dim) # (64,25,256)
+        encoding, h = self.gru(X)
+        encoding = encoding.reshape(s[0], s[1]*self.hidden_dim)
+        encoding = self.dense(encoding)
+        return encoding # (batch_size, encoding_dim)
 
 
 class Classifier(nn.Module):
@@ -122,7 +171,7 @@ class Classifier(nn.Module):
         X_batch = self.encoder(X_batch) #.to(device))
         X_batch = X_batch.reshape(s[0]*s[1], s[2], self.output_dim)
         encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0]*s[1], s[2]*self.output_dim)
+        encoding = encoding.reshape(s[0]*s[1], s[2]*self.hidden_dim)
         encoding = self.dense(encoding)
         encoding = encoding.reshape(s[0], s[1], encoding_dim)
 
@@ -134,7 +183,8 @@ class Classifier(nn.Module):
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-        return y_pred, data_batch.y[data_batch.train_mask], data_batch.batch                           # focal loss
+        train_mask = data_batch.train_mask
+        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]                           # focal loss
             #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
@@ -183,13 +233,13 @@ class Regressor(nn.Module):
             (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, device, num_node_features=1, encoding_dim=512):
+    def forward(self, X_batch, data_batch, num_node_features=1, encoding_dim=512):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
         X_batch = self.encoder(X_batch) #.to(device))
         X_batch = X_batch.reshape(s[0]*s[1], s[2], self.output_dim)
         encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0]*s[1], s[2]*self.output_dim)
+        encoding = encoding.reshape(s[0]*s[1], s[2]*self.hidden_dim)
         encoding = self.dense(encoding)
         encoding = encoding.reshape(s[0], s[1], encoding_dim)
 
@@ -201,7 +251,8 @@ class Regressor(nn.Module):
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-        return y_pred.squeeze(), data_batch.y.squeeze(), data_batch.batch              
+        train_mask = data_batch.train_mask
+        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
 
 
 class Classifier_test(Classifier):
