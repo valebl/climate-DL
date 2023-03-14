@@ -174,15 +174,15 @@ if __name__ == '__main__':
 #------------------ LOAD PARAMETERS ------------------
 #-----------------------------------------------------
     
-    #if args.mode == 'train':
-    #    net_names = ["encoder.", "gru."]
-    #elif args.mode == 'get_encoding':
-    #    net_names = ["encoder.", "gru.", "dense."]
+    if args.mode == 'train':
+        net_names = ["encoder.", "gru."]
+    elif args.mode == 'get_encoding':
+        net_names = ["encoder.", "gru.", "dense."]
     
     #-- either load the model checkpoint or load the parameters for the encoder
     if args.load_checkpoint is True and args.ctd_training is False:
         model = load_encoder_checkpoint(model, args.checkpoint_file, args.output_path, args.log_file, accelerator=accelerator,
-                fine_tuning=args.fine_tuning, net_names=args.net_names)
+                fine_tuning=args.fine_tuning, net_names=net_names)
     elif args.load_checkpoint is True and args.ctd_training is True:
         raise RuntimeError("Either load the ae parameters or continue the training.")
 

@@ -190,7 +190,7 @@ class Classifier(nn.Module):
 
 
 class Regressor(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=128, n_layers=2, num_node_features=1):
+    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=512, n_layers=2, num_node_features=1):
         super().__init__()
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
@@ -228,13 +228,13 @@ class Regressor(nn.Module):
 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
             (geometric_nn.BatchNorm(num_node_features+self.encoding_dim), 'x -> x'),
-            (GATv2Conv(num_node_features+encoding_dim, 64, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
-            (geometric_nn.BatchNorm(128), 'x -> x'),
+            (GATv2Conv(num_node_features+encoding_dim, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
+            (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),                                                     
-            (GATv2Conv(128, 64, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
-            (geometric_nn.BatchNorm(64), 'x -> x'),
+            (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
-            (GATv2Conv(64, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
 
     def forward(self, X_batch, data_batch, num_node_features=1):

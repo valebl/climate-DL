@@ -6,6 +6,7 @@ import pickle
 
 import torch
 
+
 #------Some useful utilities------
 
 class AverageMeter(object):
@@ -117,6 +118,13 @@ class Trainer(object):
             performance_meter.update(val=performance, n=X.shape[0])
             if accelerator.is_main_process:
                 wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
+                if step % 5000 == 0:
+                    checkpoint_dict = {
+                        "parameters": model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "epoch": epoch,
+                        }
+                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
         end = time.time()
         if accelerator.is_main_process:
             wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
@@ -127,6 +135,7 @@ class Trainer(object):
     def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
         loss_meter = AverageMeter()
         start = time.time()
+        step = 0
         for X, data in dataloader:
             optimizer.zero_grad()
             y_pred, y = model(X, data)
@@ -135,14 +144,22 @@ class Trainer(object):
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
+            step += 1
             if accelerator.is_main_process:
-                wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
+                #wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
+                if step % 1000 == 0:
+                    checkpoint_dict = {
+                        "parameters": model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "epoch": epoch,
+                        }
+                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
         end = time.time()
         if accelerator.is_main_process:
-            wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg})
+            #wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
-
+    
     def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=0):
         epoch_type = 'reg' if 'reg' in args.model_type else args.model_type
         train_epoch = getattr(self, f"_train_epoch_{epoch_type}")
