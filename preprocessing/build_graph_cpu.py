@@ -221,7 +221,7 @@ if __name__ == '__main__':
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold)
     
-    idx_train_ae = [[s, t] for s in range(space_low_res_dim) for t in idx_time_train]
+    idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
     idx_train_ae = np.array(idx_train_ae)
 
     with open('idx_train_ae.pkl', 'wb') as f:

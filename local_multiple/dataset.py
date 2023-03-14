@@ -42,12 +42,12 @@ class Dataset_ae(Dataset_pr):
         return input, idx_to_key
 
     def __getitem__(self, idx):
-        #k = self.idx_to_key[idx]   
-        #time_idx = k // self.space_low_res_dim
-        #space_idx = k % self.space_low_res_dim
-        k = self.idx_to_key[idx]
-        time_idx = k[1]
-        space_idx = k[0]
+        k = self.idx_to_key[idx]   
+        time_idx = k // self.space_low_res_dim
+        space_idx = k % self.space_low_res_dim
+        #k = self.idx_to_key[idx]
+        #time_idx = k[1]
+        #space_idx = k[0]
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
         #-- derive input
@@ -116,6 +116,31 @@ class Dataset_gnn(Dataset_pr):
         cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         subgraph["idx_list"] = cell_idx_list
         return input, subgraph
+
+class Dataset_ft_gnn(Dataset_gnn):
+
+    def __getitem__(self, idx):
+        k = self.idx_to_key[idx]   
+        time_idx = k // self.space_low_res_dim
+        space_idx = k % self.space_low_res_dim
+        lat_idx = space_idx // self.lon_low_res_dim
+        lon_idx = space_idx % self.lon_low_res_dim
+        #-- derive input
+        encoding = torch.zeros((9, 128))
+        cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
+        for i, s in enumerate(cell_idx_list):
+            encoding[i, :] = self.input[s, time_idx, :]
+        
+        #-- derive gnn data
+        mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
+        #print(mask_subgraph)
+        subgraph = self.graph.subgraph(subset=mask_subgraph)
+        mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
+        subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
+        y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
+        subgraph["y"] = y
+        subgraph["idx_list"] = cell_idx_list
+        return encoding, subgraph
 
 
 def custom_collate_fn_ae(batch):

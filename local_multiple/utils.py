@@ -144,7 +144,8 @@ class Trainer(object):
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
     def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=0):
-        train_epoch = getattr(self, f"_train_epoch_{args.model_type}")
+        epoch_type = 'reg' if 'reg' in args.model_type else args.model_type
+        train_epoch = getattr(self, f"_train_epoch_{epoch_type}")
         model.train()
         for epoch in range(epoch_start, epoch_start+args.epochs):
             if accelerator.is_main_process:
@@ -164,19 +165,26 @@ class Trainer(object):
 
 class Get_encoder(object):
 
-    def get_encoding(self, model, dataloader, accelerator, args, space_dim=496, time_dim=130727):
+    def get_encoding(self, model, dataloader, accelerator, args, space_dim=495, time_dim=130727):
         model.eval()
-        encodings_array = torch.tensor((space_dim, time_dim))
+        encodings_array = torch.zeros((space_dim+1, time_dim+1, 128), dtype=torch.float32)
+        step = 0
         with torch.no_grad():
             for X, idxs in dataloader: # idxs.shape = (batch_dim, 2)
-                encodings = model(X)
-                with open(args.output_path+"idxs.pkl", 'wb') as f:
-                    pickle.dump(idxs, f)
-                encodings_array[idxs[:,0], idxs[:,1]] = encodings
-                print("Done")
-                sys.exit()
-        with open(args.output_path+"encodings_array.pkl", 'wb') as f:
-            pickle.dump(encodings_array, f)
+                encodings = model(X.cuda())
+                encodings_array[idxs[:,0], idxs[:,1], :] = encodings.cpu()
+                if step == 10:
+                    break
+                #for i, e in enumerate(encodings):
+                #    s = idxs[i,0].item(); t = idxs[i,1].item()
+                #    encodings_array[s,t,:] = e.cpu().numpy()
+                if step % 25000 == 0:
+                    with open(args.output_path+args.log_file, 'a') as f:
+                        f.write(f"\nStep {step} done.")
+                step += 1
+            with open(args.output_path+"encodings_array.pkl", 'wb') as f:
+                pickle.dump(encodings_array, f)
+
 
 
 '''

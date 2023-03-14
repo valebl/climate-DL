@@ -67,7 +67,7 @@ parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
 parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
-
+parser.add_argument('--net_names',dest='accumulate', default=None)
 
 if __name__ == '__main__':
 
@@ -92,15 +92,21 @@ if __name__ == '__main__':
         accelerator = None
 
     if args.model_type == 'cl' or args.model_type == 'reg':
-        net_arch = 'gnn'
+        dataset_type = 'gnn'
+        collate_type = 'gnn'
     elif args.model_type == 'ae':
-        net_arch = 'ae'
+        dataset_type = 'ae'
+        collate_type = 'ae'
     elif args.model_type == 'e':
-        net_arch = 'e'
+        dataset_type = 'e'
+        collate_type = 'e'
+    elif args.model_type == 'reg-ft-gnn':
+        dataset_type = 'ft_gnn'
+        collate_type = 'gnn'
 
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, 'Dataset_'+net_arch)
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
+    Dataset = getattr(dataset, 'Dataset_'+dataset_type)
+    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
    
     model = Model()
     epoch_start = 0
@@ -154,7 +160,7 @@ if __name__ == '__main__':
             f.write(f'\nTrainset size = {dataset.length}.')
 
     if args.mode == 'train':
-        trainloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
     elif args.mode == 'get_encoding':
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
@@ -167,16 +173,16 @@ if __name__ == '__main__':
 #-----------------------------------------------------
 #------------------ LOAD PARAMETERS ------------------
 #-----------------------------------------------------
-
-    if args.mode == 'train':
-        net_names = ["encoder.", "gru."]
-    elif args.mode == 'get_encoding':
-        net_names = ["encoder.", "gru.", "dense."]
+    
+    #if args.mode == 'train':
+    #    net_names = ["encoder.", "gru."]
+    #elif args.mode == 'get_encoding':
+    #    net_names = ["encoder.", "gru.", "dense."]
     
     #-- either load the model checkpoint or load the parameters for the encoder
     if args.load_checkpoint is True and args.ctd_training is False:
         model = load_encoder_checkpoint(model, args.checkpoint_file, args.output_path, args.log_file, accelerator=accelerator,
-                fine_tuning=args.fine_tuning, net_names=net_names)
+                fine_tuning=args.fine_tuning, net_names=args.net_names)
     elif args.load_checkpoint is True and args.ctd_training is True:
         raise RuntimeError("Either load the ae parameters or continue the training.")
 
@@ -196,14 +202,6 @@ if __name__ == '__main__':
         optimizer.load_state_dict(checkpoint["optimizer"])
         epoch_start = checkpoint["epoch"] + 1
 
-    if accelerator is not None:
-        if args.mode == 'train':
-            model, optimizer, trainloader = accelerator.prepare(model, optimizer, trainloader)
-        elif args.mode == 'get_encoding':
-            model, dataloader = accelerator.prepare(model, dataloader)
-    else:
-        model = model.cuda()
-    
     check_freezed_layers(model, args.output_path, args.log_file, accelerator)
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -211,11 +209,18 @@ if __name__ == '__main__':
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nTotal number of trainable parameters: {total_params}.")
 
+    if accelerator is not None:
+        if args.mode == 'train':
+            model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
+        elif args.mode == 'get_encoding':
+            model, dataloader = accelerator.prepare(model, dataloader)
+    else:
+        model = model.cuda()
     start = time.time()
     
     if args.mode == 'train':
         trainer = Trainer()
-        trainer.train(model, trainloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+        trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
     elif args.mode == 'get_encoding':
         encoder = Get_encoder()
         encoder.get_encoding(model, dataloader, accelerator, args)

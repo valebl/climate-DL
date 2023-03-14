@@ -67,10 +67,11 @@ class Autoencoder(nn.Module):
         return out
 
 class Encoder(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
+    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=128, n_layers=2):
         super().__init__()
         self.output_dim = output_dim
         self.hidden_dim = hidden_dim
+        self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -99,11 +100,11 @@ class Encoder(nn.Module):
         )
 
         self.dense = nn.Sequential(
-            nn.Linear(self.hidden_dim*25, 512),
+            nn.Linear(self.hidden_dim*25, self.encoding_dim),
             nn.ReLU()
         )
 
-    def forward(self, X, encoding_dim=512):
+    def forward(self, X):
         s = X.shape
         X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
         X = self.encoder(X)
@@ -189,9 +190,12 @@ class Classifier(nn.Module):
 
 
 class Regressor(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2, num_node_features=1):
+    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=128, n_layers=2, num_node_features=1):
         super().__init__()
         self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.encoding_dim = encoding_dim
+        
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
@@ -218,22 +222,22 @@ class Regressor(nn.Module):
         )
 
         self.dense = nn.Sequential(
-            nn.Linear(hidden_dim*25, 512),
+            nn.Linear(hidden_dim*25, self.encoding_dim),
             nn.ReLU()
         )
 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(num_node_features+512), 'x -> x'),
-            (GATv2Conv(num_node_features+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
-            (geometric_nn.BatchNorm(256), 'x -> x'),
-            nn.ReLU(),                                                     
-            (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(num_node_features+self.encoding_dim), 'x -> x'),
+            (GATv2Conv(num_node_features+encoding_dim, 64, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
             (geometric_nn.BatchNorm(128), 'x -> x'),
+            nn.ReLU(),                                                     
+            (GATv2Conv(128, 64, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(64), 'x -> x'),
             nn.ReLU(),
-            (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (GATv2Conv(64, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, num_node_features=1, encoding_dim=512):
+    def forward(self, X_batch, data_batch, num_node_features=1):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
         X_batch = self.encoder(X_batch) #.to(device))
@@ -241,10 +245,10 @@ class Regressor(nn.Module):
         encoding, _ = self.gru(X_batch)
         encoding = encoding.reshape(s[0]*s[1], s[2]*self.hidden_dim)
         encoding = self.dense(encoding)
-        encoding = encoding.reshape(s[0], s[1], encoding_dim)
+        encoding = encoding.reshape(s[0], s[1], self.encoding_dim)
 
         for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[-1])).cuda()
+            features = torch.zeros((data.num_nodes, num_node_features + self.encoding_dim)).cuda()
             features[:,0] = data.x
             for j, idx in enumerate(data.idx_list):
                 features[data.low_res==idx,num_node_features:] = encoding[i,j,:]
@@ -255,6 +259,38 @@ class Regressor(nn.Module):
         return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
 
 
+class Regressor_GNN(nn.Module):
+    def __init__(self, encoding_dim=128, num_node_features=1):
+        super().__init__()
+        self.encoding_dim = encoding_dim
+
+        self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
+            (geometric_nn.BatchNorm(num_node_features+self.encoding_dim), 'x -> x'),
+            (GATv2Conv(num_node_features+encoding_dim, 64, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
+            (geometric_nn.BatchNorm(128), 'x -> x'),
+            nn.ReLU(),                                                     
+            (GATv2Conv(128, 64, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(64), 'x -> x'),
+            nn.ReLU(),
+            (GATv2Conv(64, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            ])
+
+    def forward(self, encoding_batch, data_batch, num_node_features=1): # encoding_batch.shape = (batch_dim, space_dim, time_dim, 128)
+        for i, data in enumerate(data_batch):
+            features = torch.zeros((data.num_nodes, num_node_features + self.encoding_dim)).cuda()
+            features[:,0] = data.x
+            for j, idx in enumerate(data.idx_list):
+                #print(features[data.low_res==idx,num_node_features:].shape, encoding_batch.shape, encoding_batch[i,j,:,:].shape)
+                #sys.exit()
+                features[data.low_res==idx,num_node_features:] = encoding_batch[i,j,:]
+            data.__setitem__('x', features)
+        data_batch = Batch.from_data_list(data_batch)
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        train_mask = data_batch.train_mask
+        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
+
+
+        
 class Classifier_test(Classifier):
 
     def __init__(self):
