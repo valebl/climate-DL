@@ -5,12 +5,14 @@ from torch_geometric import nn as geometric_nn
 from torch_geometric.nn import GATConv, GATv2Conv
 from torch_geometric.data import Batch
 import sys
+import time
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
+    def __init__(self, input_size=5, gru_hidden_dim=6, cnn_output_dim=256, n_layers=2, encoding_dim=6):
         super().__init__() 
-        self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
+        self.cnn_output_dim = cnn_output_dim
+        self.gru_hidden_dim = gru_hidden_dim
+        self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -28,18 +30,23 @@ class Autoencoder(nn.Module):
             nn.Linear(2048, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Linear(512, output_dim),
-            nn.BatchNorm1d(output_dim),
+            nn.Linear(512, cnn_output_dim),
+            nn.BatchNorm1d(cnn_output_dim),
             nn.ReLU()
             )
 
         # define the decoder modules
         self.gru = nn.Sequential(
-            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
+            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
         )
 
+        # self.dense = nn.Sequential(
+        #     nn.Linear(self.gru_hidden_dim*25, self.encoding_dim),
+        #     nn.ReLU()
+        # )
+
         self.decoder = nn.Sequential(
-            nn.Linear(output_dim, 512),
+            nn.Linear(25*self.gru_hidden_dim, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 2048),
@@ -57,14 +64,14 @@ class Autoencoder(nn.Module):
 
     def forward(self, X):
         s = X.shape
-        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])
-        X = self.encoder(X)
-        X = X.reshape(s[0], s[1], self.output_dim) # (64,25,256)
-        out, h = self.gru(X)
-        out = out.reshape(s[0]*s[1], self.output_dim) # (64,25*256) = (64,6400)
-        out = self.decoder(out)
-        out = out.reshape(s[0], s[1], s[2], s[3], s[4], s[5])
-        return out
+        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
+        X = self.encoder(X)                                     # (batch_dim*25, cnn_output_dim)
+        X = X.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
+        X, _ = self.gru(X) # out, h                             # (batch_dim, 25, gru_hidden_dim
+        X = X.reshape(s[0], 25*self.gru_hidden_dim)             # (batch_dim*25, gru_hidden_dim)
+        X = self.decoder(X)                                     # (batch_dim, 22500)
+        # X = X.reshape(s[0], s[1], s[2], s[3], s[4], s[5])       # (batch_dim, 25, 5, 5, 6, 6)
+        return X
 
 class Encoder(nn.Module):
     def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=128, n_layers=2):
@@ -340,3 +347,15 @@ class Regressor_test(Regressor):
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
         return y_pred.squeeze(), data_batch.y.squeeze(), data_batch.batch
+
+
+if __name__ =='__main__':
+
+    model = Autoencoder()
+    batch_dim = 64
+    input_batch = torch.rand((batch_dim, 25, 5, 5, 6, 6))
+
+    start = time.time()
+    X = model(input_batch)
+    print(f"{time.time()-start} s\n")
+    print(X.shape)
