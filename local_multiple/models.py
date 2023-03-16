@@ -46,7 +46,7 @@ class Autoencoder(nn.Module):
         # )
 
         self.decoder = nn.Sequential(
-            nn.Linear(25*self.gru_hidden_dim, 512),
+            nn.Linear(self.gru_hidden_dim, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 2048),
@@ -68,9 +68,9 @@ class Autoencoder(nn.Module):
         X = self.encoder(X)                                     # (batch_dim*25, cnn_output_dim)
         X = X.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
         X, _ = self.gru(X) # out, h                             # (batch_dim, 25, gru_hidden_dim
-        X = X.reshape(s[0], 25*self.gru_hidden_dim)             # (batch_dim*25, gru_hidden_dim)
+        X = X.reshape(s[0]*25, self.gru_hidden_dim)             # (batch_dim*25, gru_hidden_dim)
         X = self.decoder(X)                                     # (batch_dim, 22500)
-        # X = X.reshape(s[0], s[1], s[2], s[3], s[4], s[5])       # (batch_dim, 25, 5, 5, 6, 6)
+        X = X.reshape(s[0], s[1], s[2], s[3], s[4], s[5])       # (batch_dim, 25, 5, 5, 6, 6)
         return X
 
 class Encoder(nn.Module):
