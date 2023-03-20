@@ -134,7 +134,7 @@ class Dataset_ft_gnn(Dataset_gnn):
         #-- derive gnn data
         mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
         #print(mask_subgraph)
-        subgraph = self.graph.subgraph(subset=mask_subgraph)
+        #subgraph = self.graph.subgraph(subset=mask_subgraph)
         mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
         y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)

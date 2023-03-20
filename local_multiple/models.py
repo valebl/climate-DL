@@ -8,11 +8,10 @@ import sys
 import time
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=6, cnn_output_dim=256, n_layers=2, encoding_dim=6):
+    def __init__(self, input_size=5, gru_hidden_dim=24, cnn_output_dim=256, n_layers=2):
         super().__init__() 
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
-        self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),

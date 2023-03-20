@@ -12,7 +12,7 @@ parser.add_argument('--input_path', type=str, help='path to input directory', de
 parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
 parser.add_argument('--input_files_suffix', type=str, help='suffix for the input files (convenction: {parameter}{suffix}.nc)', default='_sliced')
 parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
-parser.add_argument('--output_file', type=str, help='path to output directory', default='input_standard.pkl')
+parser.add_argument('--output_file', type=str, help='path to output directory', default='input.pkl')
 parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
 
 
@@ -52,12 +52,17 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nStandardizing the dataset.')
     
+    means = np.zeros((5,5))
+    stds = np.zeros((5,5))
+
     input_ds_standard = np.zeros((input_ds.shape), dtype=np.float32)
     for var in range(5):
         for lev in range(5):
             m = np.mean(input_ds[:,var,lev,:,:])
             s = np.std(input_ds[:,var,lev,:,:])
             input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
+            means[var, lev] = m
+            stds[var, lev] = s
 
     input_ds_standard = torch.tensor(input_ds_standard)
 
@@ -72,7 +77,13 @@ if __name__ == '__main__':
         f.write(f'\nStarting to write the output file.')
     
     with open(args.output_path + args.output_file, 'wb') as f:
-        pickle.dump(input_ds_standard, f)
+        pickle.dump(input_ds, f)
+    
+    with open(args.output_path + "means.pkl", 'wb') as f:
+        pickle.dump(means, f)
+    
+    with open(args.output_path + "stds.pkl", 'wb') as f:
+        pickle.dump(stds, f)
     
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nOutput file written.\nPreprocessing finished.')
