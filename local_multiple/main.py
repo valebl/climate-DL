@@ -73,23 +73,27 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # wand
-    if args.mode == 'train':
-        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
-        os.environ['WANDB_USERNAME'] = 'valebl'
-        os.environ['WANDB_MODE'] = 'offline'
-        wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
-        #wandb.init(project="Classification", group="ALL-GPUS")
-
     torch.backends.cudnn.benchmark = True
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
     if args.use_accelerate is True:
-        accelerator = Accelerator()
+        accelerator = Accelerator(log_with="wandb")
     else:
         accelerator = None
+
+    # wand
+    if args.mode == 'train':
+        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+        os.environ['WANDB_USERNAME'] = 'valebl'
+        os.environ['WANDB_MODE'] = 'offline'
+        #wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
+        #wandb.init(project="Classification", group="ALL-GPUS")
+
+        accelerator.init_trackers(
+            project_name=args.wandb_project_name
+            )
 
     if args.model_type == 'cl' or args.model_type == 'reg':
         dataset_type = 'gnn'
@@ -146,8 +150,6 @@ if __name__ == '__main__':
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
                 
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
-
 #-----------------------------------------------------
 #-------------- DATASET AND DATALOADER ---------------
 #-----------------------------------------------------
@@ -216,6 +218,9 @@ if __name__ == '__main__':
             model, dataloader = accelerator.prepare(model, dataloader)
     else:
         model = model.cuda()
+        
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
+    
     start = time.time()
     
     if args.mode == 'train':
@@ -238,4 +243,4 @@ if __name__ == '__main__':
             f.write(f"\nDONE!")
     
     if args.mode == 'train':
-        wandb.finish()
+        accelerator.end_training()

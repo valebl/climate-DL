@@ -79,6 +79,9 @@ if __name__ == '__main__':
     idx_time_train, idx_time_test = subdivide_train_test_time_indexes(idx_time_years)
     time_train_dim = len(range(min(idx_time_train), max(idx_time_train)+1))
 
+    #with open(args.output_path + "idx_time_test.pkl", 'rb') as f:
+    #    pickle.dump(idx_time_test, f)
+
     write_log("\nStart!", args, 'w')
 
     write_log(f"\nTrain idxs from {min(idx_time_train)} to {max(idx_time_train)}. Test idxs from {min(idx_time_test)} to {max(idx_time_test)}.", args, 'w')

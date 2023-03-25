@@ -77,7 +77,7 @@ def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, 
 
 def check_freezed_layers(model, log_path, log_file, accelerator):
     for name, param in model.named_parameters():
-        n_param = param.numel()
+        n_param = param.numel() 
         if accelerator is None or accelerator.is_main_process:
             with open(log_path+log_file, 'a') as f:
                 f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters") 
@@ -85,9 +85,10 @@ def check_freezed_layers(model, log_path, log_file, accelerator):
 
 class Trainer(object):
 
-    def _train_epoch_ae(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
+    def _train_epoch_ae(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler):
         loss_meter = AverageMeter()     
         start = time.time()
+        step = 0
         for X in dataloader:
             optimizer.zero_grad()
             X_pred = model(X)
@@ -95,17 +96,26 @@ class Trainer(object):
             accelerator.backward(loss)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])
-            wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
+            #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+            lr_scheduler.step() 
+            if accelerator.is_main_process and step % 50000 == 0:
+                    checkpoint_dict = {
+                        "parameters": model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "epoch": epoch,
+                        }
+                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
+            step += 1  
         end = time.time()
-        if accelerator.is_main_process:
-            wandb.log({'epoch':epoch, 'loss epoch': loss_meter.avg})
-            with open(args.output_path+args.log_file, 'a') as f:
-                f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
+        with open(args.output_path+args.log_file, 'a') as f:
+            f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, alpha=0.95, gamma=2):
+    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.95, gamma=2):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
         start = time.time()
+        step = 0
         for X, data in dataloader:
             optimizer.zero_grad()
             y_pred, y = model(X, data)
@@ -116,8 +126,12 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             performance = accuracy_binary_one(y_pred, y)
             performance_meter.update(val=performance, n=X.shape[0])
+            if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+                lr_scheduler.step()
             if accelerator.is_main_process:
-                wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg, 'accuracy avg': performance_meter.avg})
+                step += 1
+                wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
+                    'accuracy avg': performance_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
                 if step % 5000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
@@ -132,7 +146,7 @@ class Trainer(object):
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
 
-    def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args):
+    def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0
@@ -144,19 +158,21 @@ class Trainer(object):
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            step += 1
             if accelerator.is_main_process:
-                #wandb.log({'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg})
-                if step % 1000 == 0:
+                step += 1
+                wandb.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
+                if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+                    lr_scheduler.step()
+                if step % 5000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
                         "epoch": epoch,
                         }
-                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
+                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
         end = time.time()
         if accelerator.is_main_process:
-            #wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg})
+            wandb.log({'loss epoch': loss_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
     
@@ -168,7 +184,7 @@ class Trainer(object):
             if accelerator.is_main_process:
                 with open(args.output_path+args.log_file, 'a') as f:
                     f.write(f"\nEpoch {epoch+1} --- learning rate {optimizer.param_groups[0]['lr']:.8f}")
-            train_epoch(epoch, model, dataloader, optimizer, loss_fn, accelerator, args)
+            train_epoch(epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler)
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             #    lr_scheduler.step()
             if accelerator.is_main_process:

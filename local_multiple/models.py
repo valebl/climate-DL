@@ -68,7 +68,7 @@ class Autoencoder(nn.Module):
         X = X.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
         X, _ = self.gru(X) # out, h                             # (batch_dim, 25, gru_hidden_dim
         X = X.reshape(s[0]*25, self.gru_hidden_dim)             # (batch_dim*25, gru_hidden_dim)
-        X = self.decoder(X)                                     # (batch_dim, 22500)
+        X = self.decoder(X)                                     # (batch_dim*25, gru_hidden_dim)
         X = X.reshape(s[0], s[1], s[2], s[3], s[4], s[5])       # (batch_dim, 25, 5, 5, 6, 6)
         return X
 
@@ -122,9 +122,11 @@ class Encoder(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, n_layers=2):
+    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=1):
         super().__init__()
-        self.output_dim = output_dim
+        self.cnn_output_dim = cnn_output_dim
+        self.gru_hidden_dim = gru_hidden_dim
+        self.num_node_features = num_node_features
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -142,27 +144,22 @@ class Classifier(nn.Module):
             nn.Linear(2048, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Linear(512, output_dim),
-            nn.BatchNorm1d(output_dim),
+            nn.Linear(512, cnn_output_dim),
+            nn.BatchNorm1d(cnn_output_dim),
             nn.ReLU()
             )
 
         # define the decoder modules
         self.gru = nn.Sequential(
-            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
-        )
-
-        self.dense = nn.Sequential(
-            nn.Linear(hidden_dim*25, 512),
-            nn.ReLU()
+            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
         )
 
         #gnn
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(1+512), 'x -> x'),
-            (GATv2Conv(1+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(num_node_features+self.gru_hidden_dim*25), 'x -> x'),
+            (GATv2Conv(num_node_features+self.gru_hidden_dim*25, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
-            nn.ReLU(),
+            nn.ReLU(),                                                     
             (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
@@ -172,36 +169,34 @@ class Classifier(nn.Module):
             nn.Sigmoid()                                            # focal loss
             ])
         
-    def forward(self, X_batch, data_batch, num_node_features=1, encoding_dim=512):
+    def forward(self, X_batch, data_batch, num_node_features=1):
         s = X_batch.shape
-        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
-        X_batch = self.encoder(X_batch) #.to(device))
-        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.output_dim)
-        encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0]*s[1], s[2]*self.hidden_dim)
-        encoding = self.dense(encoding)
-        encoding = encoding.reshape(s[0], s[1], encoding_dim)
+        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)     # (batch_dim*9, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
 
         for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, num_node_features + encoding.shape[-1])).cuda()
+            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
             features[:,0] = data.x
             for j, idx in enumerate(data.idx_list):
-                features[data.low_res==idx,num_node_features:] = encoding[i,j,:]
+                features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
-        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]                           # focal loss
+        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
             #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
 class Regressor(nn.Module):
-    def __init__(self, input_size=5, input_dim=256, hidden_dim=256, output_dim=256, encoding_dim=512, n_layers=2, num_node_features=1):
+    def __init__(self, input_size=5, gru_hidden_dim=24, cnn_output_dim=256, n_layers=2, num_node_features=1):
         super().__init__()
-        self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
-        self.encoding_dim = encoding_dim
-        
+        self.cnn_output_dim = cnn_output_dim
+        self.gru_hidden_dim = gru_hidden_dim
+        self.num_node_features = num_node_features
+
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
@@ -218,23 +213,23 @@ class Regressor(nn.Module):
             nn.Linear(2048, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
-            nn.Linear(512, output_dim),
-            nn.BatchNorm1d(output_dim),
+            nn.Linear(512, cnn_output_dim),
+            nn.BatchNorm1d(cnn_output_dim),
             nn.ReLU()
             )
 
         self.gru = nn.Sequential(
-            nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
+            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
         )
 
-        self.dense = nn.Sequential(
-            nn.Linear(hidden_dim*25, self.encoding_dim),
-            nn.ReLU()
-        )
+        #self.dense = nn.Sequential(
+        #    nn.Linear(hidden_dim*25, self.encoding_dim),
+        #    nn.ReLU()
+        #)
 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(num_node_features+self.encoding_dim), 'x -> x'),
-            (GATv2Conv(num_node_features+encoding_dim, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
+            (geometric_nn.BatchNorm(num_node_features+self.gru_hidden_dim*25), 'x -> x'),
+            (GATv2Conv(num_node_features+self.gru_hidden_dim*25, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),                                                     
             (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
@@ -245,19 +240,17 @@ class Regressor(nn.Module):
 
     def forward(self, X_batch, data_batch, num_node_features=1):
         s = X_batch.shape
-        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])
-        X_batch = self.encoder(X_batch) #.to(device))
-        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.output_dim)
-        encoding, _ = self.gru(X_batch)
-        encoding = encoding.reshape(s[0]*s[1], s[2]*self.hidden_dim)
-        encoding = self.dense(encoding)
-        encoding = encoding.reshape(s[0], s[1], self.encoding_dim)
+        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)     # (batch_dim*9, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
 
         for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, num_node_features + self.encoding_dim)).cuda()
+            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
             features[:,0] = data.x
             for j, idx in enumerate(data.idx_list):
-                features[data.low_res==idx,num_node_features:] = encoding[i,j,:]
+                features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
