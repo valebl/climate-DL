@@ -96,7 +96,7 @@ class Trainer(object):
             accelerator.backward(loss)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])
-            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step() 
             if accelerator.is_main_process and step % 50000 == 0:
@@ -108,6 +108,7 @@ class Trainer(object):
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
             step += 1  
         end = time.time()
+        accelerator.log({'loss epoch': loss_meter.avg})
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
@@ -126,22 +127,22 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             performance = accuracy_binary_one(y_pred, y)
             performance_meter.update(val=performance, n=X.shape[0])
-            if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-                lr_scheduler.step()
+            #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+            accelerator.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
+                'accuracy avg': performance_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
+            lr_scheduler.step()
             if accelerator.is_main_process:
-                step += 1
-                wandb.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
-                    'accuracy avg': performance_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
                 if step % 5000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
                         "epoch": epoch,
                         }
-                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
+                    torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
+            step += 1
         end = time.time()
+        accelerator.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
         if accelerator.is_main_process:
-            wandb.log({'epoch': epoch, 'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
@@ -158,11 +159,11 @@ class Trainer(object):
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
+            #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+            lr_scheduler.step()
+            step += 1
             if accelerator.is_main_process:
-                step += 1
-                wandb.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0]})
-                if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-                    lr_scheduler.step()
                 if step % 5000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
@@ -171,8 +172,8 @@ class Trainer(object):
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
         end = time.time()
+        accelerator.log({'loss epoch': loss_meter.avg})
         if accelerator.is_main_process:
-            wandb.log({'loss epoch': loss_meter.avg})
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
     
@@ -218,7 +219,14 @@ class Get_encoder(object):
             with open(args.output_path+"encodings_array.pkl", 'wb') as f:
                 pickle.dump(encodings_array, f)
 
+class Tester(object):
 
+    def test(self, model_cl, model_reg, dataloader, accelerator, args):
+        model.eval()
+        with torch.no_grad():    
+            for X, data in dataloader:
+                y_pred_reg = model(X, data)
+                y_pred_cl = model(X, data)
 
 '''
 #----- VALIDATION ------
