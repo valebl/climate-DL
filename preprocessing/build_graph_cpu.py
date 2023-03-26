@@ -79,8 +79,8 @@ if __name__ == '__main__':
     idx_time_train, idx_time_test = subdivide_train_test_time_indexes(idx_time_years)
     time_train_dim = len(range(min(idx_time_train), max(idx_time_train)+1))
 
-    #with open(args.output_path + "idx_time_test.pkl", 'rb') as f:
-    #    pickle.dump(idx_time_test, f)
+    with open(args.output_path + "idx_time_test.pkl", 'wb') as f:
+        pickle.dump(idx_time_test, f)
 
     write_log("\nStart!", args, 'w')
 
@@ -222,8 +222,16 @@ if __name__ == '__main__':
     mask_9_cells_subgraphs = np.zeros((space_low_res_dim,n_nodes)).astype(bool)   # maps each low_res_cell to the corresponding 9 cells mask
                                                                                      # if cell is not a valid example, the mask will be all nans
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
-    mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold)
+    mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
     
+    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test]
+    idx_test = np.array(idx_test)
+
+    with open('idx_test.pkl', 'wb') as f:
+        pickle.dump(idx_test, f)
+   
+    sys.exit()
+
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
     idx_train_ae = np.array(idx_train_ae)
 
