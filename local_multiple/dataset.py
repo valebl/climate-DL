@@ -155,8 +155,10 @@ class Dataset_gnn_test(Dataset_pr):
         #print(mask_subgraph)
         subgraph = self.graph.subgraph(subset=mask_subgraph)
         #mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
+        cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
+        subgraph["idx_list"] = cell_idx_list
         subgraph["test_mask"] = self.mask_1_cell[space_idx][mask_subgraph]
-        subgraph["space_idxs"] = self.mask_1_cell[space_idx]
+        subgraph["space_idxs"] = np.argwhere(self.mask_1_cell[space_idx] == 1)[0]
         subgraph["time_idx"] = time_idx
         return input, subgraph
 

@@ -191,7 +191,7 @@ class Classifier(nn.Module):
 
 
 class Regressor(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=24, cnn_output_dim=256, n_layers=2, num_node_features=1):
+    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
@@ -296,17 +296,22 @@ class Classifier_test(Classifier):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
 
+        space_idxs = []
+        time_idxs = []
+
         for i, data in enumerate(data_batch):
             features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
             features[:,0] = data.x
             for j, idx in enumerate(data.idx_list):
                 features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
+            _ = [space_idxs.append(s) for s in data.space_idxs]
+            _ = [time_idxs.append(data.time_idx) for s in data.space_idxs]
         data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        y_pred = self.gnn(data_batch.x.cuda(), data_batch.edge_index.cuda(), data_batch.edge_attr.float().cuda())
         test_mask = data_batch.test_mask
-        return y_pred[test_mask].squeeze()       
-            #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
+        return y_pred[test_mask].squeeze(), np.array(space_idxs), np.array(time_idxs)
+    #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
 class Regressor_test(Regressor):
@@ -329,9 +334,9 @@ class Regressor_test(Regressor):
                 features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
             data.__setitem__('x', features)
         data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        y_pred = self.gnn(data_batch.x.cuda(), data_batch.edge_index.cuda(), data_batch.edge_attr.float().cuda())
         test_mask = data_batch.test_mask
-        return y_pred[test_mask].squeeze()    
+        return y_pred[test_mask].squeeze(), data_batch.space_idxs, np.array(data_batch.time_idx)    
 
 
 if __name__ =='__main__':

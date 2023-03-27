@@ -3,25 +3,26 @@ import pickle
 import torch
 import argparse
 import time
+import os
+import sys
+sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
 
 import models, dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
 # from torch_geometric.data import Data, Batch
 
-import sys
-
-sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/")
-
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
 parser.add_argument('--input_path', type=str, help='path to input directory', default="/m100_work/ICT23_ESP_C/vblasone/DATA/graph/")
-parser.add_argument('--output_path', type=str, help='path to output directory', default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/predictions/")
+parser.add_argument('--output_path', type=str, help='path to output directory', default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/predictions/")
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
 parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
-parser.add_argument('--graph_file', type=str, default="G_north_italy_test.pkl") 
+parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
+parser.add_argument('--graph_file', type=str, default="G_north_italy_train.pkl") 
+parser.add_argument('--graph_file_test', type=str, default="G_north_italy_test.pkl") 
 parser.add_argument('--mask_1_cell_file', type=str, default="mask_1_cell_subgraphs.pkl")
 parser.add_argument('--mask_9_cells_file', type=str, default="mask_9_cells_subgraphs.pkl") 
 
@@ -43,7 +44,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    log_file = f"log_{args.test_year}.txt"
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
 
     with open(args.output_path + args.log_file, 'w') as f:
         f.write("Starting.")
@@ -62,7 +64,10 @@ if __name__ == '__main__':
     with open(args.input_path + args.idx_file, 'rb') as f:
         test_keys = pickle.load(f)
     
-    with open(args.input_path + args.graph_file, 'rb') as f:
+    with open(args.input_path + args.idx_time_test, 'rb') as f:
+        idx_time_test = pickle.load(f)
+    
+    with open(args.input_path + args.graph_file_test, 'rb') as f:
         G_test = pickle.load(f)
 
 #-----------------------------------------------------
@@ -80,7 +85,7 @@ if __name__ == '__main__':
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nDone!")
-        f.write("\nInstantiate models and load checkpoints.")
+        f.write("\nInstantiate models and load checkpoints.\n")
 
     Model_cl = getattr(models, model_name_cl)
     Model_reg = getattr(models, model_name_reg)
@@ -88,14 +93,22 @@ if __name__ == '__main__':
     model_cl = Model_cl()
     model_reg = Model_reg()
 
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nClassifier:")
+
     checkpoint_cl = load_checkpoint(model_cl, checkpoint_cl, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nRegressor:")
+
     checkpoint_reg = load_checkpoint(model_reg, checkpoint_reg, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
     
     model_cl = model_cl.cuda()
     model_reg = model_reg.cuda()
 
     with open(args.output_path + args.log_file, 'a') as f:
-        f.write("\nDone!")
+        f.write("\n\nDone!")
 
 #-----------------------------------------------------
 #-------------------- PREDICTIONS --------------------
@@ -107,7 +120,7 @@ if __name__ == '__main__':
     tester = Tester()
     
     start = time.time()
-    y_pred_cl, y_pred_reg, y_pred = tester.test(model_cl, model_reg, dataloader, G_test.pr.shape)
+    y_pred_cl, y_pred_reg, y_pred = tester.test(model_cl, model_reg, dataloader, G_test.pr.shape, time_shift=min(idx_time_test), args=args)
     end = time.time()
 
     G_test["y_pred_cl"] = y_pred_cl
@@ -118,7 +131,7 @@ if __name__ == '__main__':
         f.write(f"\nDone. Testing concluded in {end-start} seconds.")
         f.write("\nWrite the files.")
 
-    with open(args.output_path + "G_predictions.pkl", 'wb'):
+    with open(args.output_path + "G_predictions.pkl", 'wb') as f:
         pickle.dump(G_test, f)
 
     with open(args.output_path + args.log_file, 'a') as f:

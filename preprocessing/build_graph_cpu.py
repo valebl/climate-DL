@@ -190,7 +190,8 @@ if __name__ == '__main__':
     edge_attr[:,1] = edge_attr[:,1] / edge_attr[:,1].max()
     
     # create the graph objects
-    G_test = Data(pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int())
+    G_test = Data(pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int(),
+            edge_index=torch.tensor(edge_index),edge_attr=torch.tensor(edge_attr))
     G_train = Data(x=torch.tensor(z_sel_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
@@ -227,7 +228,7 @@ if __name__ == '__main__':
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
     
-    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test]
+    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
 
     with open('idx_test.pkl', 'wb') as f:

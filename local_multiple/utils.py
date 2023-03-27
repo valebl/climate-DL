@@ -5,7 +5,7 @@ import sys
 import pickle
 
 import torch
-
+import copy
 
 #------Some useful utilities------
 
@@ -221,18 +221,26 @@ class Get_encoder(object):
 
 class Tester(object):
 
-    def test(self, model_cl, model_reg, dataloader, y_pred_shape):
+    def test(self, model_cl, model_reg, dataloader, y_pred_shape, time_shift, args):
         model_cl.eval()
         model_reg.eval()
         y_pred_cl = torch.zeros(y_pred_shape, dtype=torch.float32)
         y_pred_reg = torch.zeros(y_pred_shape, dtype=torch.float32)
         y_pred = torch.zeros(y_pred_shape, dtype=torch.float32)
+        #print(f"y_pred_cl.shape: {y_pred_cl.shape}")
+        step = 0
         with torch.no_grad():    
             for X, data in dataloader:
-                X = X.cuda(); data = data.cuda()
-                space_idxs = data.space_idxs
-                time_idx = data.time_idxs
-                y_pred_cl[space_idxs, time_idx] = model_cl(X, data)
-                y_pred_reg[space_idxs, time_idx] = model_reg(X, data)
-                y_pred[space_idxs, time_idx] = y_pred_cl[space_idxs, time_idx] * y_pred_reg[space_idxs, time_idx]
+                X = X.cuda()
+                y_cl, space_idxs, time_idx = model_cl(X, copy.deepcopy(data))
+                y_reg, _, _ = model_reg(X, data)
+                print(f"y_cl.shape: {y_cl.shape}, y_reg.shape: {y_reg.shape}, space_idxs.shape: {space_idxs.shape}, time_idx.shape: {time_idx.shape}")
+                time_idx = time_idx - time_shift
+                y_pred_cl[space_idxs, time_idx] = y_cl.cpu()
+                y_pred_reg[space_idxs, time_idx] = y_reg.cpu()
+                y_pred[space_idxs, time_idx] = y_cl.cpu() * y_reg.cpu()
+                if step % 5000 == 0:
+                    with open(args.output_path+args.log_file, 'a') as f:
+                        f.write(f"\nStep {step} done.")
+                step += 1
         return y_pred_cl, y_pred_reg, y_pred
