@@ -119,6 +119,7 @@ if __name__ == '__main__':
         with open(args.output_path+args.log_file, 'w') as f:
             f.write("Starting the training...")
             f.write(f"Cuda is available: {torch.cuda.is_available()}. There are {torch.cuda.device_count()} available GPUs.")
+            
 #-----------------------------------------------------
 #-------------------- TRAIN UTILS --------------------
 #-----------------------------------------------------
@@ -221,6 +222,10 @@ if __name__ == '__main__':
         
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
     
+#-----------------------------------------------------
+#----------------------- TRAIN -----------------------
+#-----------------------------------------------------
+
     start = time.time()
     
     if args.mode == 'train':
@@ -229,11 +234,6 @@ if __name__ == '__main__':
     elif args.mode == 'get_encoding':
         encoder = Get_encoder()
         encoder.get_encoding(model, dataloader, accelerator, args)
-
-    #total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
-    #    num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
-    #    accelerator=accelerator, lr_scheduler=scheduler, checkpoint_name=args.output_path+args.out_checkpoint_file,
-    #    performance=args.performance, epoch_start=epoch_start)
 
     end = time.time()
 

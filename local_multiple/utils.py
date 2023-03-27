@@ -48,7 +48,7 @@ def accuracy_binary_two(prediction, target):
 def weighted_mse_loss(input_batch, target_batch, weights):
     return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
 
-def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning):
+def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning=True):
     if accelerator is None or accelerator.is_main_process:
         with open(log_path+log_file, 'a') as f:
             f.write("\nLoading encoder parameters.") 
@@ -221,133 +221,18 @@ class Get_encoder(object):
 
 class Tester(object):
 
-    def test(self, model_cl, model_reg, dataloader, accelerator, args):
-        model.eval()
+    def test(self, model_cl, model_reg, dataloader, y_pred_shape):
+        model_cl.eval()
+        model_reg.eval()
+        y_pred_cl = torch.zeros(y_pred_shape, dtype=torch.float32)
+        y_pred_reg = torch.zeros(y_pred_shape, dtype=torch.float32)
+        y_pred = torch.zeros(y_pred_shape, dtype=torch.float32)
         with torch.no_grad():    
             for X, data in dataloader:
-                y_pred_reg = model(X, data)
-                y_pred_cl = model(X, data)
-
-'''
-#----- VALIDATION ------
-
-def validate_ae(model, dataloader, accelerator, loss_fn, val_loss_meter, val_performance_meter):
-
-    model.eval()
-    with torch.no_grad():
-        for X in dataloader:
-            if accelerator is None:
-                X = X.cuda()
-            X_pred = model(X)
-            loss = loss_fn(X_pred, X)
-            val_loss_meter.update(loss.item(), X.shape[0])
-            if val_performance_meter is not None:
-                perf = accuracy(X_pred, X)
-                val_performance_meter.update(val=perf, n=X.shape[0])
-        val_loss_meter.add_iter_loss()
-        if val_performance_meter is not None:
-            val_performance_meter.add_iter_loss()
-    model.train()
-    return
-
-
-def validate_gnn(model, dataloader, accelerator, loss_fn, val_loss_meter, val_performance_meter):
-
-    model.eval()
-    with torch.no_grad():
-        for X, data in dataloader:
-            device = 'cuda' if accelerator is None else accelerator.device
-            y_pred, y, _ = model(X, data, device)
-            if val_performance_meter is not None:
-                perf = accuracy(y_pred, y)
-                val_performance_meter.update(val=perf, n=X.shape[0])
-            loss = loss_fn(y_pred, y)
-            val_loss_meter.update(loss.item(), X.shape[0])
-        val_loss_meter.add_iter_loss()
-        if val_performance_meter is not None:
-            val_performance_meter.add_iter_loss()
-    model.train()
-    return
-
-
-#------ TEST ------  
-
-def test_model_ae(model, dataloader, log_path, log_file, accelerator, loss_fn=None, performance=None):
-    
-    if loss_fn is not None:
-        loss_meter = AverageMeter()
-
-    i = 0
-    model.eval()
-    with torch.no_grad():
-        for X in dataloader:
-            if accelerator is None:
-                X = X.cuda()
-            X_pred = model(X)
-            loss = loss_fn(X_pred, X) if loss_fn is not None else None
-            if loss_fn is not None:
-                loss_meter.update(loss.item(), X.shape[0])
-            if i == 0:
-                X_pred = X_pred.detach().cpu().numpy()
-                X = X.detach().cpu().numpy()
-                with open(log_path+"X_pred.pkl", 'wb') as f:
-                    pickle.dump(X_pred, f)
-                with open(log_path+"X.pkl", 'wb') as f:
-                    pickle.dump(X, f)
-            i += 1
-
-    fin_loss_total = loss_meter.sum if loss_fn is not None else None
-    fin_loss_avg = loss_meter.avg if loss_fn is not None else None
-    if accelerator is None or accelerator.is_main_process:
-        with open(log_path+log_file, 'a') as f:
-            f.write(f"\nTESTING - loss total = {fin_loss_total if fin_loss_total is not None else '--'},"
-                    +f"loss avg = {fin_loss_avg if fin_loss_avg is not None else '--'}")
-    return fin_loss_total, fin_loss_avg
-
-
-def test_model_gnn(model, dataloader, log_path, log_file, accelerator, loss_fn=None, performance=None):
-    
-    if loss_fn is not None:
-        loss_meter = AverageMeter()
-    if performance is not None:
-        perf_meter = AverageMeter()
-
-    y_pred_list = []
-    y_list = []
-    model.eval()
-    with torch.no_grad():
-        for X, data in dataloader:
-            device = 'cuda' if accelerator is None else accelerator.device
-            y_pred, y, _ = model(X, data, device)
-            if loss_fn is not None:
-                loss = loss_fn(y_pred, y)
-                loss_meter.update(loss.item(), X.shape[0])
-            else:
-                loss = None
-            if performance is not None:
-                perf = accuracy(y_pred, y)
-                perf_meter.update(perf, X.shape[0])
-                _ = [y_pred_list.append(yi) for yi in torch.argmax(y_pred, dim=-1).detach().cpu().numpy()]
-            else:
-                _ = [y_pred_list.append(yi) for yi in y_pred.detach().cpu().numpy()]
-            
-            _ = [y_list.append(yi) for yi in y.detach().cpu().numpy()]
-        y_list = np.array(y_list)
-        y_pred_list = np.array(y_pred_list)
-        with open(log_path+"y_pred.pkl", 'wb') as f:
-            pickle.dump(y_pred_list, f)
-        with open(log_path+"y.pkl", 'wb') as f:                  
-            pickle.dump(y_list, f)
-
-    fin_loss_total = loss_meter.sum if loss_fn is not None else None
-    fin_loss_avg = loss_meter.avg if loss_fn is not None else None
-    fin_perf_avg = perf_meter.avg if performance is not None else None
-
-    if accelerator is None or accelerator.is_main_process:
-        with open(log_path+log_file, 'a') as f:
-            f.write(f"\nTESTING - loss total = {fin_loss_total if fin_loss_total is not None else '--'},"
-                    +f"loss avg = {fin_loss_avg if fin_loss_avg is not None else '--'}. Performance = {fin_perf_avg}.")
-
-    return fin_loss_total, fin_loss_avg
-'''
-
+                X = X.cuda(); data = data.cuda()
+                space_idxs = data.space_idxs
+                time_idx = data.time_idxs
+                y_pred_cl[space_idxs, time_idx] = model_cl(X, data)
+                y_pred_reg[space_idxs, time_idx] = model_reg(X, data)
+                y_pred[space_idxs, time_idx] = y_pred_cl[space_idxs, time_idx] * y_pred_reg[space_idxs, time_idx]
+        return y_pred_cl, y_pred_reg, y_pred
