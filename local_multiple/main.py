@@ -180,7 +180,7 @@ if __name__ == '__main__':
     if args.mode == 'train':
         net_names = ["encoder.", "gru."]
     elif args.mode == 'get_encoding':
-        net_names = ["encoder.", "gru.", "dense."]
+        net_names = ["encoder.", "gru."]
     
     #-- either load the model checkpoint or load the parameters for the encoder
     if args.load_checkpoint is True and args.ctd_training is False:
@@ -220,7 +220,6 @@ if __name__ == '__main__':
     else:
         model = model.cuda()
         
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
     
 #-----------------------------------------------------
 #----------------------- TRAIN -----------------------
@@ -229,6 +228,7 @@ if __name__ == '__main__':
     start = time.time()
     
     if args.mode == 'train':
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
         trainer = Trainer()
         trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
     elif args.mode == 'get_encoding':
