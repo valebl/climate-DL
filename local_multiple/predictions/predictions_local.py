@@ -10,6 +10,8 @@ from utils import load_encoder_checkpoint as load_checkpoint, Tester
 
 import sys
 
+sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/")
+
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
