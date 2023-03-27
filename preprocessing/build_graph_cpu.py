@@ -195,8 +195,11 @@ if __name__ == '__main__':
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    #with open('G_north_italy_test.pkl', 'wb') as f:
-    #    pickle.dump(G_test, f)
+    with open('G_north_italy_test.pkl', 'wb') as f:
+        pickle.dump(G_test, f)
+    
+    sys.exit()
+
     #
     #with open('G_north_italy_train.pkl', 'wb') as f:
     #    pickle.dump(G_train, f)
