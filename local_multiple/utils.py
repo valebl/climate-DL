@@ -151,9 +151,13 @@ class Trainer(object):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0
+        t0 = time.time()
         for X, data in dataloader:
+            print(f"\nStep {step}\nTime to get the batch: {time.time()-t0:.3f}s")
             optimizer.zero_grad()
             y_pred, y = model(X, data)
+            if step == 5:
+                return
             loss = loss_fn(y_pred, y)
             accelerator.backward(loss)
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
@@ -171,6 +175,7 @@ class Trainer(object):
                         "epoch": epoch,
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
+            t0 = time.time()
         end = time.time()
         accelerator.log({'loss epoch': loss_meter.avg})
         if accelerator.is_main_process:

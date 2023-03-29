@@ -31,8 +31,9 @@ parser.add_argument('--idx_file', type=str, default=None)
 parser.add_argument('--checkpoint_file', type=str, default=None)
 parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
-parser.add_argument('--mask_1_cell_file', type=str, default=None)
-parser.add_argument('--mask_9_cells_file', type=str, default=None) 
+#parser.add_argument('--mask_1_cell_file', type=str, default=None)
+#parser.add_argument('--mask_9_cells_file', type=str, default=None) 
+parser.add_argument('--subgraphs_file', type=str, default="subgraphs.pkl")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -156,7 +157,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
 
     #-- create the dataset
-    dataset = Dataset(args)
+    dataset = Dataset(args)   
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
@@ -236,6 +237,8 @@ if __name__ == '__main__':
         encoder.get_encoding(model, dataloader, accelerator, args)
 
     end = time.time()
+
+    print(dataset.t_input, dataset.t_gnn)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:

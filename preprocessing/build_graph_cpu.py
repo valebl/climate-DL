@@ -10,8 +10,6 @@ import os
 
 from torch_geometric.data import Data
 
-from numba import jit
-
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
@@ -143,8 +141,8 @@ if __name__ == '__main__':
     #with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
     #    pickle.dump(cell_idx_array, f)
 
-    #with open('valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
-    #    pickle.dump(valid_examples_space, f)
+    with open('valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
+        pickle.dump(valid_examples_space, f)
 
     #with open('graph_cells_space.pkl', 'wb') as f:      # all low res cells that are used (examples + surroundings)
     #    pickle.dump(graph_cells_space, f)
@@ -190,20 +188,19 @@ if __name__ == '__main__':
     edge_attr[:,1] = edge_attr[:,1] / edge_attr[:,1].max()
     
     # create the graph objects
-    G_test = Data(pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int(),
+    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int(),
             edge_index=torch.tensor(edge_index),edge_attr=torch.tensor(edge_attr))
-    G_train = Data(x=torch.tensor(z_sel_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
+    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(z_sel_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
     with open('G_north_italy_test.pkl', 'wb') as f:
         pickle.dump(G_test, f)
     
+    with open('G_north_italy_train.pkl', 'wb') as f:
+        pickle.dump(G_train, f)
+    
     sys.exit()
-
-    #
-    #with open('G_north_italy_train.pkl', 'wb') as f:
-    #    pickle.dump(G_train, f)
     #
     #with open('target_train_cl.pkl', 'wb') as f:
     #    pickle.dump(pr_sel_train_cl, f)    

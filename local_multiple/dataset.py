@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 from torch.utils.data._utils.collate import default_convert
 
 from torch_geometric.data import Data
+import copy
+import time
 
 class Dataset_pr(Dataset):
 
@@ -72,7 +74,10 @@ class Dataset_gnn(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.mask_1_cell, self.mask_9_cells = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.subgraphs = self._load_data_into_memory()
+        self.mask_target = self.mask_target.cuda()
+        self.t_input=0
+        self.t_gnn=0
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -85,15 +90,18 @@ class Dataset_gnn(Dataset_pr):
             graph = pickle.load(f)
         with open(self.args.input_path + self.args.mask_target_file, 'rb') as f:
             mask_target = pickle.load(f)
-        with open(self.args.input_path + self.args.mask_1_cell_file, 'rb') as f:
-            mask_1_cell = pickle.load(f)
-        with open(self.args.input_path + self.args.mask_9_cells_file, 'rb') as f:
-            mask_9_cells = pickle.load(f)
+        #with open(self.args.input_path + self.args.mask_1_cell_file, 'rb') as f:
+        #    mask_1_cell = pickle.load(f)
+        #with open(self.args.input_path + self.args.mask_9_cells_file, 'rb') as f:
+        #    mask_9_cells = pickle.load(f)
+        with open(self.args.input_path + self.args.subgraphs_file, 'rb') as f:
+            subgraphs = pickle.load(f)
         self.length = len(idx_to_key)
         self.low_res_abs = abs(graph.low_res)
-        return input, idx_to_key, target, graph, mask_target, mask_1_cell, mask_9_cells
+        return input, idx_to_key, target, graph, mask_target, subgraphs
 
     def __getitem__(self, idx):
+        t0 = time.time()
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_low_res_dim
         space_idx = k % self.space_low_res_dim
@@ -104,17 +112,21 @@ class Dataset_gnn(Dataset_pr):
         lon_lat_idx_list = torch.tensor([[ii, jj] for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         for i, idx in enumerate(lon_lat_idx_list):
             input[i, :] = self.input[time_idx - 24 : time_idx+1, :, :, idx[0] - self.pad + 2 : idx[0] + self.pad + 4, idx[1] - self.pad + 2 : idx[1] + self.pad + 4]
-        
+        t1 = time.time()
+        self.t_input += (t1 - t0)
         #-- derive gnn data
-        mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
+        #mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
         #print(mask_subgraph)
-        subgraph = self.graph.subgraph(subset=mask_subgraph)
-        mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
-        subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
-        y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
-        subgraph["y"] = y
-        cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        subgraph["idx_list"] = cell_idx_list
+        #subgraph = self.graph.subgraph(subset=mask_subgraph)
+        subgraph = self.subgraphs[space_idx].cuda()
+        #print(space_idx, subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
+        mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx] # shape = (n_nodes,)
+        subgraph["train_mask"] = mask_y_nodes[subgraph.mask_subgraph]
+        y = self.target[subgraph.mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
+        subgraph["y"] = y.cuda()
+        #cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
+        #subgraph["idx_list"] = cell_idx_list
+        self.t_gnn += (time.time() - t1)
         return input, subgraph
     
 class Dataset_gnn_test(Dataset_pr):

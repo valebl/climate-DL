@@ -6,6 +6,7 @@ from torch_geometric.nn import GATConv, GATv2Conv
 from torch_geometric.data import Batch
 import sys
 import time
+import copy
 
 class Autoencoder(nn.Module):
     def __init__(self, input_size=5, gru_hidden_dim=24, cnn_output_dim=256, n_layers=2):
@@ -229,18 +230,22 @@ class Regressor(nn.Module):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
         t1 = time.time()
-
         for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
-            features[:,0] = data.x
+            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim))
+            #print(features[:,0].shape, data_i.x.shape)
+            features[:,0] = data.z
+            features = features.cuda()
             for j, idx in enumerate(data.idx_list):
                 features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
-            data.__setitem__('x', features)
+            data['x'] = features
         data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-        train_mask = data_batch.train_mask
         t2 = time.time()
-        print(f"\nTime percentages:\nEncoder: {(t1-t0)/(t2-t0)*100:.3f}%\nGNN: {(t1-t0)/(t2-t0)*100:.3f}%")
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        t3 = time.time()
+        train_mask = data_batch.train_mask
+        #print(f"Data.x.shape: {data_batch.x.shape}")
+        print(f"Time totals: Encoder: {(t1-t0):.3f}s, Features: {(t2-t1):.3f}s, GNN: {(t3-t2):.3f}s")
+        print(f"Time percentages: Encoder: {(t1-t0)/(t3-t0)*100:.3f}%, Features: {(t2-t1)/(t3-t0)*100:.3f}%, GNN: {(t3-t2)/(t3-t0)*100:.3f}%")
         return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
 
 
