@@ -37,10 +37,16 @@ def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     pr_sel = np.array(pr[:,bool_both])
     return lon_sel, lat_sel, z_sel, pr_sel
 
-def select_nodes(lon_centre, lat_centre, lon, lat, pr, cell_idx, cell_idx_array, offset, time_dim):
+def select_nodes(lon_centre, lat_centre, lon, lat, pr, cell_idx, cell_idx_array, offset, offset_9, mask_1_cell_subgraphs, mask_9_cells_subgraphs):
     bool_lon = np.logical_and(lon >= lon_centre, lon <= lon_centre+offset)
     bool_lat = np.logical_and(lat >= lat_centre, lat <= lat_centre+offset)
     bool_both = np.logical_and(bool_lon, bool_lat)
+    bool_lon_9 = np.logical_and(lon >= lon_centre - offset_9, lon <= lon_centre + offset + offset_9)
+    bool_lat_9 = np.logical_and(lat >= lat_centre - offset_9, lat <= lat_centre + offset + offset_9)
+    bool_both_9 = np.logical_and(bool_lon_9, bool_lat_9)
+    bool_both_9 = np.logical_or(bool_both, bool_both_9)
+    mask_1_cell_subgraphs[cell_idx, :] = bool_both
+    mask_9_cells_subgraphs[cell_idx, :] = bool_both_9
     cell_idx_array[bool_both] = cell_idx
     flag_valid_example = False
     for i in np.argwhere(bool_both):
@@ -48,7 +54,7 @@ def select_nodes(lon_centre, lat_centre, lon, lat, pr, cell_idx, cell_idx_array,
             cell_idx_array[i] *= -1
         else:
             flag_valid_example = True
-    return cell_idx_array, flag_valid_example
+    return cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs
 
 def write_log(s, args, mode='a'):
     with open(args.output_path + args.log_file, mode) as f:
@@ -104,6 +110,7 @@ if __name__ == '__main__':
     write_log(f"\nDone! Window is [{lon_sel.min()}, {lon_sel.max()}] x [{lat_sel.min()}, {lat_sel.max()}] with {n_nodes} nodes.", args)
 
     cell_idx_array = np.zeros(n_nodes) # maps each node to the corresponding low_res cell idx
+    #cell_idx_array_9 = np.zeros(n_nodes)
 
     lon_low_res_array = np.arange(args.lon_min, args.lon_max, args.interval)
     lat_low_res_array = np.arange(args.lat_min, args.lat_max, args.interval)
@@ -118,12 +125,14 @@ if __name__ == '__main__':
     valid_examples_space = [ii * lon_low_res_dim + jj for ii in range(1,lat_low_res_dim-1) for jj in range(1,lon_low_res_dim-1)]
     graph_cells_space = []
 
+    mask_1_cell_subgraphs = np.zeros((space_low_res_dim, n_nodes)).astype(bool)
+    mask_9_cells_subgraphs = np.zeros((space_low_res_dim,n_nodes)).astype(bool)   # maps each low_res_cell to the corresponding 9 cells mask
 
     for i, lat_low_res in enumerate(lat_low_res_array):
         for j, lon_low_res in enumerate(lon_low_res_array):
             cell_idx = i * lon_low_res_dim + j
-            cell_idx_array, flag_valid_example = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, pr_sel, cell_idx,
-                    cell_idx_array, args.interval, args.time_dim)         
+            cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, pr_sel, cell_idx,
+                    cell_idx_array, args.interval, 0.1, mask_1_cell_subgraphs, mask_9_cells_subgraphs)         
             if cell_idx in valid_examples_space:
                 if flag_valid_example:
                     idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
@@ -131,6 +140,7 @@ if __name__ == '__main__':
                 else:
                     valid_examples_space.remove(cell_idx)
 
+    
     graph_cells_space = list(set(graph_cells_space))
     graph_cells_space.sort()
     valid_examples_space.sort()
@@ -141,14 +151,22 @@ if __name__ == '__main__':
     #with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
     #    pickle.dump(cell_idx_array, f)
 
-    with open('valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
-        pickle.dump(valid_examples_space, f)
+    #with open('valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
+    #    pickle.dump(valid_examples_space, f)
 
     #with open('graph_cells_space.pkl', 'wb') as f:      # all low res cells that are used (examples + surroundings)
     #    pickle.dump(graph_cells_space, f)
     
     # keep only the graph cells space idxs
     mask_graph_cells_space = np.in1d(abs(cell_idx_array), graph_cells_space)
+    mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
+    mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
+
+    with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
+        pickle.dump(mask_9_cells_subgraphs, f)
+    
+    sys.exit()
+    
     lon_sel = lon_sel[mask_graph_cells_space]
     lat_sel = lat_sel[mask_graph_cells_space]
     z_sel = z_sel[mask_graph_cells_space]
@@ -194,13 +212,11 @@ if __name__ == '__main__':
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    with open('G_north_italy_test.pkl', 'wb') as f:
-        pickle.dump(G_test, f)
+    #with open('G_north_italy_test.pkl', 'wb') as f:
+    #    pickle.dump(G_test, f)
     
-    with open('G_north_italy_train.pkl', 'wb') as f:
-        pickle.dump(G_train, f)
-    
-    sys.exit()
+    #with open('G_north_italy_train.pkl', 'wb') as f:
+    #    pickle.dump(G_train, f)
     #
     #with open('target_train_cl.pkl', 'wb') as f:
     #    pickle.dump(pr_sel_train_cl, f)    
@@ -228,18 +244,14 @@ if __name__ == '__main__':
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
 
-    with open('idx_test.pkl', 'wb') as f:
-        pickle.dump(idx_test, f)
-   
-    sys.exit()
+    #with open('idx_test.pkl', 'wb') as f:
+    #    pickle.dump(idx_test, f)
 
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
     idx_train_ae = np.array(idx_train_ae)
 
-    with open('idx_train_ae.pkl', 'wb') as f:
-        pickle.dump(idx_train_ae, f)
-    
-    sys.exit()
+    #with open('idx_train_ae.pkl', 'wb') as f:
+    #    pickle.dump(idx_train_ae, f)
 
     c = 0
     for s in range(space_low_res_dim):
@@ -270,20 +282,20 @@ if __name__ == '__main__':
 
     write_log(f"\nCreating the idx array took {time.time() - start} seconds", args)    
 
-    with open('idx_train_cl.pkl', 'wb') as f:
-        pickle.dump(idx_train_cl, f)
+    #with open('idx_train_cl.pkl', 'wb') as f:
+    #    pickle.dump(idx_train_cl, f)
 
-    with open('idx_train_reg.pkl', 'wb') as f:
-        pickle.dump(idx_train_reg, f)
+    #with open('idx_train_reg.pkl', 'wb') as f:
+    #    pickle.dump(idx_train_reg, f)
     
-    with open('mask_train_cl.pkl', 'wb') as f:
-        pickle.dump(mask_train_cl, f)
+    #with open('mask_train_cl.pkl', 'wb') as f:
+    #    pickle.dump(mask_train_cl, f)
 
-    with open('mask_train_reg.pkl', 'wb') as f:
-        pickle.dump(mask_train_reg, f)
+    #with open('mask_train_reg.pkl', 'wb') as f:
+    #    pickle.dump(mask_train_reg, f)
     
-    with open('mask_1_cell_subgraphs.pkl', 'wb') as f:
-        pickle.dump(mask_1_cell_subgraphs, f)
+    #with open('mask_1_cell_subgraphs.pkl', 'wb') as f:
+    #    pickle.dump(mask_1_cell_subgraphs, f)
 
     with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
         pickle.dump(mask_9_cells_subgraphs, f)

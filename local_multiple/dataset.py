@@ -75,7 +75,8 @@ class Dataset_gnn(Dataset_pr):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.subgraphs = self._load_data_into_memory()
-        self.mask_target = self.mask_target.cuda()
+        #self.mask_target = self.mask_target.cuda()
+        #self.subgraphs = [s.cuda() if s != [] else [] for s in self.subgraphs]
         self.t_input=0
         self.t_gnn=0
 
@@ -120,7 +121,7 @@ class Dataset_gnn(Dataset_pr):
         #subgraph = self.graph.subgraph(subset=mask_subgraph)
         subgraph = self.subgraphs[space_idx].cuda()
         #print(space_idx, subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
-        mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx] # shape = (n_nodes,)
+        mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx].cuda() # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[subgraph.mask_subgraph]
         y = self.target[subgraph.mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y.cuda()

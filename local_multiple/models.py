@@ -184,6 +184,10 @@ class Regressor(nn.Module):
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
         self.num_node_features = num_node_features
+        self.time_encoder = 0
+        self.time_gnn = 0
+        self.time_features = 0
+        self.time_tot = 0
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -221,7 +225,7 @@ class Regressor(nn.Module):
             (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, num_node_features=1):
+    def forward(self, X_batch, data_batch, accelerator, step, num_node_features=1):
         t0 = time.time()
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
@@ -244,8 +248,17 @@ class Regressor(nn.Module):
         t3 = time.time()
         train_mask = data_batch.train_mask
         #print(f"Data.x.shape: {data_batch.x.shape}")
-        print(f"Time totals: Encoder: {(t1-t0):.3f}s, Features: {(t2-t1):.3f}s, GNN: {(t3-t2):.3f}s")
-        print(f"Time percentages: Encoder: {(t1-t0)/(t3-t0)*100:.3f}%, Features: {(t2-t1)/(t3-t0)*100:.3f}%, GNN: {(t3-t2)/(t3-t0)*100:.3f}%")
+        self.time_encoder += (t1-t0)
+        self.time_features += (t2-t1)
+        self.time_gnn += (t3-t2)
+        self.time_tot += (t3-t0)
+        if step == 200:
+            if accelerator.is_main_process:
+                print(f"Time totals: Total: {self.time_tot:.3f}s, Encoder: {self.time_encoder:.3f}s, Features: {self.time_features:.3f}s, GNN: {self.time_gnn:.3f}s")
+                print(f"Time percentages: Encoder: {self.time_encoder/self.time_tot*100:.3f}%, Features: {self.time_features/self.time_tot*100:.3f}%, GNN: {self.time_gnn/self.time_tot*100:.3f}%")
+        #if accelerator.is_main_process:
+        #    print(f"Time totals: Encoder: {(t1-t0):.3f}s, Features: {(t2-t1):.3f}s, GNN: {(t3-t2):.3f}s")
+        #    print(f"Time percentages: Encoder: {(t1-t0)/(t3-t0)*100:.3f}%, Features: {(t2-t1)/(t3-t0)*100:.3f}%, GNN: {(t3-t2)/(t3-t0)*100:.3f}%")
         return y_pred[train_mask].squeeze(), data_batch.y[train_mask]              
 
 

@@ -10,13 +10,15 @@ from torch_geometric.data import Data
 
 if __name__ == "__main__":
 
-    input_path = "/home/vblasone/DATA/graph/"
+    #input_path = "/home/vblasone/DATA/graph/"
+    input_path = "/m100_work/ICT23_ESP_C/vblasone/DATA/graph/" 
     space_idxs_file = "valid_examples_space.pkl"
     graph_file = "G_north_italy_train.pkl"
     mask_1_cell_file = "mask_1_cell_subgraphs.pkl"
     mask_9_cells_file = "mask_9_cells_subgraphs.pkl"
-    output_path = "/home/vblasone/DATA/graph/"
-    subgraphs_file = "subgraphs.pkl"
+    #output_path = "/home/vblasone/DATA/graph/"
+    output_path = "/m100_work/ICT23_ESP_C/vblasone/DATA/graph/"
+    subgraphs_file = "subgraphs_s.pkl"
 
     lat_dim=16
     lon_dim=31
