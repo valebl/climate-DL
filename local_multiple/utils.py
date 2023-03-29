@@ -157,7 +157,7 @@ class Trainer(object):
             #    print(f"\nStep {step}\nTime to get the batch: {time.time()-t0:.3f}s")
             optimizer.zero_grad()
             y_pred, y = model(X, data, accelerator, step)
-            if step == 200:
+            if step == 5:
                 #if accelerator.is_main_process:
                 #    print(f"Time totals: Total: {model.time_tot:.3f}s, Encoder: {model.time_encoder:.3f}s, Features: {model.time_features:.3f}s, GNN: {model.time_gnn:.3f}s")
                 #    print(f"Time percentages: Encoder: {model.time_encoder/model.time_tot*100:.3f}%, Features: {model.time_features/model.time_tot*100:.3f}%, GNN: {model.time_gnn/model.time_tot*100:.3f}%")

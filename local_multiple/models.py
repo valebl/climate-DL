@@ -233,8 +233,11 @@ class Regressor(nn.Module):
         X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)
         encoding, _ = self.gru(X_batch)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)
+        
         t1 = time.time()        
+        
         # Create a mask that maps low_res indices to node indices
+        data_batch = Batch.from_data_list(data_batch)
         node_mask = torch.zeros((data_batch.num_nodes,))
         node_mask[data_batch.low_res] = torch.arange(data_batch.num_nodes)
         node_mask = node_mask.long().cuda()
@@ -253,15 +256,20 @@ class Regressor(nn.Module):
         
         # Update the node features in the original data batch
         data_batch.x = features
-        data_batch = Batch.from_data_list(data_batch)
+        
         t2 = time.time()
+        
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        
+        t3 = time.time()
+        
         train_mask = data_batch.train_mask
+        
         self.time_encoder += (t1-t0)
         self.time_features += (t2-t1)
         self.time_gnn += (t3-t2)
         self.time_tot += (t3-t0)
-        if step == 200:
+        if step == 5:
             if accelerator.is_main_process:
                 print(f"Time totals: Total: {self.time_tot:.3f}s, Encoder: {self.time_encoder:.3f}s, Features: {self.time_features:.3f}s, GNN: {self.time_gnn:.3f}s")
                 print(f"Time percentages: Encoder: {self.time_encoder/self.time_tot*100:.3f}%, Features: {self.time_features/self.time_tot*100:.3f}%, GNN: {self.time_gnn/self.time_tot*100:.3f}%")
