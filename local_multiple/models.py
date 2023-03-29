@@ -225,36 +225,36 @@ class Regressor(nn.Module):
             (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
         
-    def forward(self, X_batch, data_batch, accelerator, step):
-            t0 = time.time()
-            s = X_batch.shape
-            X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
-            X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
-            X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)     # (batch_dim*9, 25, cnn_output_dim)
-            encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
-            encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
-            t1 = time.time()    
-            for i, data in enumerate(data_batch):
-                features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim))
-                features[:,0] = data.z
-                features = features.cuda()
-                for j, idx in enumerate(data.idx_list):
-                    features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
-                data['x'] = features
-            data_batch = Batch.from_data_list(data_batch)
-            t2 = time.time()
-            y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-            t3 = time.time()    
-            train_mask = data_batch.train_mask
-            self.time_encoder += (t1-t0)
-            self.time_features += (t2-t1)
-            self.time_gnn += (t3-t2)
-            self.time_tot += (t3-t0)
-            if step == 5:
-                if accelerator.is_main_process:
-                    print(f"Time totals: Total: {self.time_tot:.3f}s, Encoder: {self.time_encoder:.3f}s, Features: {self.time_features:.3f}s, GNN: {self.time_gnn:.3f}s")
-                    print(f"Time percentages: Encoder: {self.time_encoder/self.time_tot*100:.3f}%, Features: {self.time_features/self.time_tot*100:.3f}%, GNN: {self.time_gnn/self.time_tot*100:.3f}%")
-            return y_pred[train_mask].squeeze(), data_batch.y[train_mask]     
+    def forward(self, X_batch, data_list, accelerator, step):
+        t0 = time.time()
+        s = X_batch.shape
+        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)     # (batch_dim*9, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
+        t1 = time.time()
+        features = torch.zeros((data_batch.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
+        for i, data in enumerate(data_list):
+            for j, idx in enumerate(data.idx_list):
+                mask = data.low_res == idx
+                features[mask, self.num_node_features:] = encoding[i, j, :].repeat(mask.sum(), 1)
+        data_batch = Batch.from_data_list(data_list)
+        features = torch.cat([data_batch.x[:, :self.num_node_features], encoding.reshape(-1, s[2] * self.gru_hidden_dim)], dim=-1)
+        data_batch.x = features
+        t2 = time.time()
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        t3 = time.time()    
+        train_mask = data_batch.train_mask
+        self.time_encoder += (t1-t0)
+        self.time_features += (t2-t1)
+        self.time_gnn += (t3-t2)
+        self.time_tot += (t3-t0)
+        if step == 5:
+            if accelerator.is_main_process:
+                print(f"Time totals: Total: {self.time_tot:.3f}s, Encoder: {self.time_encoder:.3f}s, Features: {self.time_features:.3f}s, GNN: {self.time_gnn:.3f}s")
+                print(f"Time percentages: Encoder: {self.time_encoder/self.time_tot*100:.3f}%, Features: {self.time_features/self.time_tot*100:.3f}%, GNN: {self.time_gnn/self.time_tot*100:.3f}%")
+        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]     
 
 class Regressor_GNN(nn.Module):
     def __init__(self, encoding_dim=128, num_node_features=1):
