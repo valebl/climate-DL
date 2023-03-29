@@ -234,12 +234,12 @@ class Regressor(nn.Module):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
         t1 = time.time()
+        data_batch = Batch.from_data_list(data_list)
         features = torch.zeros((data_batch.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
         for i, data in enumerate(data_list):
             for j, idx in enumerate(data.idx_list):
                 mask = data.low_res == idx
                 features[mask, self.num_node_features:] = encoding[i, j, :].repeat(mask.sum(), 1)
-        data_batch = Batch.from_data_list(data_list)
         features = torch.cat([data_batch.x[:, :self.num_node_features], encoding.reshape(-1, s[2] * self.gru_hidden_dim)], dim=-1)
         data_batch.x = features
         t2 = time.time()
