@@ -240,7 +240,7 @@ class Regressor(nn.Module):
             for j, idx in enumerate(data.idx_list):
                 mask = data.low_res == idx
                 features[mask, self.num_node_features:] = encoding[i, j, :].repeat(mask.sum(), 1)
-        features = torch.cat([data_batch.x[:, :self.num_node_features], encoding.reshape(-1, s[2] * self.gru_hidden_dim)], dim=-1)
+        #features = torch.cat([data_batch.x[:, :self.num_node_features], encoding.reshape(-1, s[2] * self.gru_hidden_dim)], dim=-1)
         data_batch.x = features
         t2 = time.time()
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
