@@ -162,10 +162,8 @@ if __name__ == '__main__':
     mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
     mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
 
-    with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
-        pickle.dump(mask_9_cells_subgraphs, f)
-    
-    sys.exit()
+    #with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
+    #    pickle.dump(mask_9_cells_subgraphs, f)
     
     lon_sel = lon_sel[mask_graph_cells_space]
     lat_sel = lat_sel[mask_graph_cells_space]
@@ -208,15 +206,17 @@ if __name__ == '__main__':
     # create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int(),
             edge_index=torch.tensor(edge_index),edge_attr=torch.tensor(edge_attr))
-    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(z_sel_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
+    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(z_sel_s).unsqueeze(-1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
     #with open('G_north_italy_test.pkl', 'wb') as f:
     #    pickle.dump(G_test, f)
     
-    #with open('G_north_italy_train.pkl', 'wb') as f:
-    #    pickle.dump(G_train, f)
+    with open('G_north_italy_train.pkl', 'wb') as f:
+        pickle.dump(G_train, f)
+
+    sys.exit()
     #
     #with open('target_train_cl.pkl', 'wb') as f:
     #    pickle.dump(pr_sel_train_cl, f)    

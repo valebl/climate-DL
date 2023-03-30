@@ -18,7 +18,7 @@ if __name__ == "__main__":
     mask_9_cells_file = "mask_9_cells_subgraphs.pkl"
     #output_path = "/home/vblasone/DATA/graph/"
     output_path = "/m100_work/ICT23_ESP_C/vblasone/DATA/graph/"
-    subgraphs_file = "subgraphs_s.pkl"
+    subgraphs_file = "subgraphs_s_new.pkl"
 
     lat_dim=16
     lon_dim=31
@@ -42,16 +42,13 @@ if __name__ == "__main__":
         lat_idx = space_idx // lon_dim
         lon_idx = space_idx % lon_dim
         mask_subgraph = mask_9_cells[space_idx] # shape = (n_nodes,)
-        #print(mask_subgraph)
         subgraph = graph.subgraph(subset=mask_subgraph)
-        #mask_y_nodes = mask_1_cell[space_idx] * mask_target[:,time_idx] # shape = (n_nodes,)
-        #subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
+        cell_idx_list = torch.tensor([ii * lon_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
+        idx_list_mapped = torch.sum(torch.stack([(subgraph.low_res==idx)* j for j, idx in enumerate(cell_idx_list)]), dim=0)
         subgraph["mask_1_cell"] = mask_1_cell[space_idx].cpu()
         subgraph["mask_subgraph"] = mask_subgraph.cpu()
-        #y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
-        #subgraph["y"] = y
-        cell_idx_list = torch.tensor([ii * lon_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         subgraph["idx_list"] = cell_idx_list
+        subgraph["idx_list_mapped"] = idx_list_mapped
         subgraphs[space_idx] = subgraph
         if space_idx % 10 == 0:
             print(f"Done until {space_idx}.")
