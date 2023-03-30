@@ -160,10 +160,7 @@ class Trainer(object):
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            grad_max = 0
-            for param in model.parameters():
-                if param.grad is not None:
-                    grad_max = torch.max(grad_max, torch.max(torch.abs(param.grad).item()))
+            grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 
                 'lr': lr_scheduler.get_last_lr()[0], 'step':step, 'grad_max':grad_max})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
