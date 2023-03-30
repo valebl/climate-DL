@@ -234,14 +234,30 @@ class Regressor(nn.Module):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
         t1 = time.time()
-        data_batch = Batch.from_data_list(data_list)
-        features = torch.zeros((data_batch.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
+        
         for i, data in enumerate(data_list):
-            for j, idx in enumerate(data.idx_list):
-                mask = data.low_res == idx
-                features[mask, self.num_node_features:] = encoding[i, j, :].repeat(mask.sum(), 1)
-        features = torch.cat([data_batch.x[:, :self.num_node_features], encoding.reshape(-1, s[2] * self.gru_hidden_dim)], dim=-1)
-        data_batch.x = features
+            data.x = torch.cat((data.z, encoding[i,data.idx_list_mapped,:]),dim=-1)
+            # Map each index to 0-8:
+            #idx_list_mapped = torch.sum(torch.stack([(data.low_res==idx)* j for j, idx in enumerate(data.idx_list)]),dim=0)
+            # Assign the features tensor to the 'x' attribute of the data object
+            #data.x = torch.cat((data.z.unsqueeze(-1), encoding[i,idx_list_mapped,:]),dim=-1)
+
+        #for i, data in enumerate(data_list):
+        #    # Create a features tensor of the appropriate size and type
+        #    features = torch.zeros((data.num_nodes, 1 + s[2]*self.gru_hidden_dim), device='cuda')
+        #    features[:,0] = data.z
+        #    # Loop over each index in data.idx_list and assign the corresponding encodings to nodes where low_res is equal to that index
+        #    for j, idx in enumerate(data.idx_list):
+        #        idx_mask = (data.low_res == idx).view(-1)
+        #        features[idx_mask,1:] = encoding[i,j,:].t()
+        #        # Assign the features tensor to the 'x' attribute of the data object
+        #        data.x = features
+        #    if accelerator.is_main_process:
+        #        print(data)
+        #        print(data.num_nodes, 1 + s[2]*self.gru_hidden_dim, data.z.shape, data.low_res.shape, data.idx_list.shape, data.x.shape, encoding.shape)
+        #        sys.exit()
+        data_batch = Batch.from_data_list(data_list)                                                    
+        
         t2 = time.time()
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         t3 = time.time()    
@@ -250,7 +266,7 @@ class Regressor(nn.Module):
         self.time_features += (t2-t1)
         self.time_gnn += (t3-t2)
         self.time_tot += (t3-t0)
-        if step == 5:
+        if step == 100:
             if accelerator.is_main_process:
                 print(f"Time totals: Total: {self.time_tot:.3f}s, Encoder: {self.time_encoder:.3f}s, Features: {self.time_features:.3f}s, GNN: {self.time_gnn:.3f}s")
                 print(f"Time percentages: Encoder: {self.time_encoder/self.time_tot*100:.3f}%, Features: {self.time_features/self.time_tot*100:.3f}%, GNN: {self.time_gnn/self.time_tot*100:.3f}%")
