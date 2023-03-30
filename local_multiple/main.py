@@ -238,7 +238,7 @@ if __name__ == '__main__':
 
     end = time.time()
 
-    print(dataset.t_input, dataset.t_gnn)
+    #print(dataset.t_input, dataset.t_gnn)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:

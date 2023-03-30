@@ -153,22 +153,19 @@ class Trainer(object):
         step = 0 
         t0 = time.time()
         for X, data in dataloader:
-            #if accelerator.is_main_process:
-            #    print(f"\nStep {step}\nTime to get the batch: {time.time()-t0:.3f}s")
             optimizer.zero_grad()
             y_pred, y = model(X, data)
-            #y_pred, y = model(X, data, accelerator, step)
-            #if step == 100:
-            #    #if accelerator.is_main_process:
-            #    #    print(f"Time totals: Total: {model.time_tot:.3f}s, Encoder: {model.time_encoder:.3f}s, Features: {model.time_features:.3f}s, GNN: {model.time_gnn:.3f}s")
-            #    #    print(f"Time percentages: Encoder: {model.time_encoder/model.time_tot*100:.3f}%, Features: {model.time_features/model.time_tot*100:.3f}%, GNN: {model.time_gnn/model.time_tot*100:.3f}%")
-            #    return
             loss = loss_fn(y_pred, y)
             accelerator.backward(loss)
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
+            grad_max = 0
+            for param in model.parameters():
+                if param.grad is not None:
+                    grad_max = torch.max(grad_max, torch.max(torch.abs(param.grad).item()))
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 
+                'lr': lr_scheduler.get_last_lr()[0], 'step':step, 'grad_max':grad_max})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step()
             step += 1
