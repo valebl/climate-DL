@@ -231,7 +231,7 @@ class Regressor(nn.Module):
         for i, data in enumerate(data_list):
             data['x'] = torch.cat((data.z, encoding[i,data.idx_list_mapped,:]),dim=-1)
         
-        data_batch = Batch.from_data_list(data_list)                                                    
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
@@ -273,7 +273,7 @@ class Classifier_test(Classifier):
     def __init__(self):
         super().__init__()
     
-    def forward(self, X_batch, data_batch, num_node_features=1):
+    def forward(self, X_batch, data_list, G_test):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
@@ -281,21 +281,17 @@ class Classifier_test(Classifier):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
 
-        space_idxs = []
-        time_idxs = []
-
-        for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
-            features[:,0] = data.x
-            for j, idx in enumerate(data.idx_list):
-                features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
-            data.__setitem__('x', features)
-            _ = [space_idxs.append(s) for s in data.space_idxs]
-            _ = [time_idxs.append(data.time_idx) for s in data.space_idxs]
-        data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x.cuda(), data_batch.edge_index.cuda(), data_batch.edge_attr.float().cuda())
-        test_mask = data_batch.test_mask
-        return y_pred[test_mask].squeeze(), np.array(space_idxs), np.array(time_idxs)
+        for i, data in enumerate(data_list):
+            data['x'] = torch.cat((data.z, encoding[i,data.idx_list_mapped,:]),dim=-1)
+        
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "idx_list", "idx_list_mapped"]) 
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        for idx in range(s[0]):
+            data = data_batch.get_example(idx)
+            #print(y_pred.shape, G_test['pr_reg'].shape, data.mask_1_cell.shape, G_test['pr_reg'][data.mask_1_cell, data.time_idx].shape)
+            y_pred_i = torch.where(y_pred[data_batch.batch == idx][data.test_mask].squeeze() > 0.5, 1.0, 0.0).cpu()
+            G_test['pr_cl'][data.mask_1_cell, data.time_idx] = y_pred_i
+            return
     #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
 
 
@@ -304,7 +300,7 @@ class Regressor_test(Regressor):
     def __init__(self):
         super().__init__()
     
-    def forward(self, X_batch, data_batch, num_node_features=1):
+    def forward(self, X_batch, data_list, G_test):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*9*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*9*25, cnn_output_dim)
@@ -312,16 +308,16 @@ class Regressor_test(Regressor):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim*9, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1], s[2]*self.gru_hidden_dim)   # (batch_dim, 9, 25*gru_hidden_dim)
 
-        for i, data in enumerate(data_batch):
-            features = torch.zeros((data.num_nodes, self.num_node_features + s[2]*self.gru_hidden_dim)).cuda()
-            features[:,0] = data.x
-            for j, idx in enumerate(data.idx_list):
-                features[data.low_res==idx,self.num_node_features:] = encoding[i,j,:]
-            data.__setitem__('x', features)
-        data_batch = Batch.from_data_list(data_batch)
-        y_pred = self.gnn(data_batch.x.cuda(), data_batch.edge_index.cuda(), data_batch.edge_attr.float().cuda())
-        test_mask = data_batch.test_mask
-        return y_pred[test_mask].squeeze(), data_batch.space_idxs, np.array(data_batch.time_idx)    
+        for i, data in enumerate(data_list):
+            data['x'] = torch.cat((data.z, encoding[i,data.idx_list_mapped,:]),dim=-1)
+        
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "idx_list", "idx_list_mapped"]) 
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        for idx in range(s[0]):
+            data = data_batch.get_example(idx)
+            y_pred_i = y_pred[data_batch.batch == idx][data.test_mask].squeeze().cpu()
+            G_test['pr_reg'][data.mask_1_cell, data.time_idx] = y_pred_i
+        return     
 
 
 if __name__ =='__main__':

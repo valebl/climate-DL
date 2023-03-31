@@ -75,8 +75,6 @@ class Dataset_gnn(Dataset_pr):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.subgraphs = self._load_data_into_memory()
-        #self.mask_target = self.mask_target.cuda()
-        #self.subgraphs = [s.cuda() if s != [] else [] for s in self.subgraphs]
         self.t_input=0
         self.t_gnn=0
 
@@ -91,10 +89,6 @@ class Dataset_gnn(Dataset_pr):
             graph = pickle.load(f)
         with open(self.args.input_path + self.args.mask_target_file, 'rb') as f:
             mask_target = pickle.load(f)
-        #with open(self.args.input_path + self.args.mask_1_cell_file, 'rb') as f:
-        #    mask_1_cell = pickle.load(f)
-        #with open(self.args.input_path + self.args.mask_9_cells_file, 'rb') as f:
-        #    mask_9_cells = pickle.load(f)
         with open(self.args.input_path + self.args.subgraphs_file, 'rb') as f:
             subgraphs = pickle.load(f)
         self.length = len(idx_to_key)
@@ -116,25 +110,20 @@ class Dataset_gnn(Dataset_pr):
         t1 = time.time()
         self.t_input += (t1 - t0)
         #-- derive gnn data
-        #mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
-        #print(mask_subgraph)
-        #subgraph = self.graph.subgraph(subset=mask_subgraph)
         subgraph = self.subgraphs[space_idx].cuda()
-        #print(space_idx, subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
         mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx].cuda() # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[subgraph.mask_subgraph]
         y = self.target[subgraph.mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y.cuda()
-        #cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        #subgraph["idx_list"] = cell_idx_list
         self.t_gnn += (time.time() - t1)
         return input, subgraph
     
 class Dataset_gnn_test(Dataset_pr):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, time_shift, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self.graph, self.mask_1_cell, self.mask_9_cells = self._load_data_into_memory()
+        self.time_shift = time_shift
+        self.input, self.idx_to_key, self.graph, self.subgraphs = self._load_data_into_memory()
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -143,13 +132,11 @@ class Dataset_gnn_test(Dataset_pr):
             idx_to_key = pickle.load(f)   
         with open(self.args.input_path + self.args.graph_file, 'rb') as f:
             graph = pickle.load(f)
-        with open(self.args.input_path + self.args.mask_1_cell_file, 'rb') as f:
-            mask_1_cell = pickle.load(f)
-        with open(self.args.input_path + self.args.mask_9_cells_file, 'rb') as f:
-            mask_9_cells = pickle.load(f)
+        with open(self.args.input_path + self.args.subgraphs, 'rb') as f:
+            subgraphs = pickle.load(f)
         self.length = len(idx_to_key)
         self.low_res_abs = abs(graph.low_res)
-        return input, idx_to_key, graph, mask_1_cell, mask_9_cells
+        return input, idx_to_key, graph, subgraphs
 
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
@@ -164,15 +151,11 @@ class Dataset_gnn_test(Dataset_pr):
             input[i, :] = self.input[time_idx - 24 : time_idx+1, :, :, idx[0] - self.pad + 2 : idx[0] + self.pad + 4, idx[1] - self.pad + 2 : idx[1] + self.pad + 4]
         
         #-- derive gnn data
-        mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
-        #print(mask_subgraph)
-        subgraph = self.graph.subgraph(subset=mask_subgraph)
-        #mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
+        subgraph = self.subgraphs[space_idx].cuda()
         cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         subgraph["idx_list"] = cell_idx_list
-        subgraph["test_mask"] = self.mask_1_cell[space_idx][mask_subgraph]
-        subgraph["space_idxs"] = np.argwhere(self.mask_1_cell[space_idx] == 1)[0]
-        subgraph["time_idx"] = time_idx
+        subgraph["time_idx"] = time_idx - self.time_shift
+        subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_subgraph]
         return input, subgraph
 
 class Dataset_ft_gnn(Dataset_gnn):

@@ -160,9 +160,9 @@ class Trainer(object):
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
+            #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 
-                'lr': lr_scheduler.get_last_lr()[0], 'step':step, 'grad_max':grad_max})
+                'lr': lr_scheduler.get_last_lr()[0], 'step':step}) #, 'grad_max':grad_max})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             lr_scheduler.step()
             step += 1
@@ -225,26 +225,18 @@ class Get_encoder(object):
 
 class Tester(object):
 
-    def test(self, model_cl, model_reg, dataloader, y_pred_shape, time_shift, args):
+    def test(self, model_cl, model_reg, dataloader, G_test, args):
         model_cl.eval()
         model_reg.eval()
-        y_pred_cl = torch.zeros(y_pred_shape, dtype=torch.float32)
-        y_pred_reg = torch.zeros(y_pred_shape, dtype=torch.float32)
-        y_pred = torch.zeros(y_pred_shape, dtype=torch.float32)
-        #print(f"y_pred_cl.shape: {y_pred_cl.shape}")
         step = 0
         with torch.no_grad():    
             for X, data in dataloader:
                 X = X.cuda()
-                y_cl, space_idxs, time_idx = model_cl(X, copy.deepcopy(data))
-                y_reg, _, _ = model_reg(X, data)
-                print(f"y_cl.shape: {y_cl.shape}, y_reg.shape: {y_reg.shape}, space_idxs.shape: {space_idxs.shape}, time_idx.shape: {time_idx.shape}")
-                time_idx = time_idx - time_shift
-                y_pred_cl[space_idxs, time_idx] = y_cl.cpu()
-                y_pred_reg[space_idxs, time_idx] = y_reg.cpu()
-                y_pred[space_idxs, time_idx] = y_cl.cpu() * y_reg.cpu()
-                if step % 5000 == 0:
+                model_cl(X, data, G_test)
+                model_reg(X, data, G_test)
+                if step % 1000 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")
-                step += 1
-        return y_pred_cl, y_pred_reg, y_pred
+                step += 1 
+        G_test["pr"] = G_test.pr_cl * G_test.pr_reg
+        return

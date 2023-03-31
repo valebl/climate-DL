@@ -8,33 +8,33 @@ from torch.utils.data._utils.collate import default_convert
 
 from torch_geometric.data import Data
 
+import argparse
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+# paths and files
+parser.add_argument('--input_path', type=str, default="/m100_work/ICT23_ESP_C/vblasone/DATA/graph/")
+parser.add_argument('--output_path', type=str, default="/m100_work/ICT23_ESP_C/vblasone/DATA/graph/")
+parser.add_argument('--graph_file'. type=str, default="G_north_italy_train.pkl")
+parser.add_argument('--subgraphs_file', type=str, default="subgraphs_s_new.pkl")
+parser.add_argument('--space_idxs_file', type=str, default="valid_examples_space.pkl")
+parser.add_argument('--mask_1_cell_file', type=str, default="mask_1_cell_subgraphs.pkl")
+parser.add_argument('--mask_9_cells_file', type=str, default="mask_9_cells_subgraphs.pkl")
+
+# other
+parser.add_argument('--lat_dim', type=int, default=16)
+parser.add_argument('--lon_dim', type=int, default=31)
+parser.add_argument('--test', action='store_true')
+parser.add_argument('--train', dest='test', action='store_false')
+
 if __name__ == "__main__":
 
-    #input_path = "/home/vblasone/DATA/graph/"
-    input_path = "/m100_work/ICT23_ESP_C/vblasone/DATA/graph/" 
-    space_idxs_file = "valid_examples_space.pkl"
-    graph_file = "G_north_italy_train.pkl"
-    mask_1_cell_file = "mask_1_cell_subgraphs.pkl"
-    mask_9_cells_file = "mask_9_cells_subgraphs.pkl"
-    #output_path = "/home/vblasone/DATA/graph/"
-    output_path = "/m100_work/ICT23_ESP_C/vblasone/DATA/graph/"
-    subgraphs_file = "subgraphs_s_new.pkl"
+    lat_lon_dim = args.lat_dim * args.lon_dim 
 
-    lat_dim=16
-    lon_dim=31
-    lat_lon_dim = lat_dim * lon_dim 
-
-    with open(input_path + space_idxs_file, 'rb') as f:
+    with open(args.input_path + args.space_idxs_file, 'rb') as f:
         space_idxs = pickle.load(f)
 
-    with open(input_path + graph_file, 'rb') as f:
+    with open(args.input_path + args.graph_file, 'rb') as f:
         graph = pickle.load(f)
-    
-    with open(input_path + mask_1_cell_file, 'rb') as f:
-        mask_1_cell = pickle.load(f)
-
-    with open(input_path + mask_9_cells_file, 'rb') as f:
-        mask_9_cells = pickle.load(f)
     
     subgraphs = [[] for i in range(max(space_idxs)+1)]
 

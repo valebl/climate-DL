@@ -9,7 +9,6 @@ sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
 
 import models, dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
-# from torch_geometric.data import Data, Batch
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -23,8 +22,7 @@ parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
 parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file', type=str, default="G_north_italy_train.pkl") 
 parser.add_argument('--graph_file_test', type=str, default="G_north_italy_test.pkl") 
-parser.add_argument('--mask_1_cell_file', type=str, default="mask_1_cell_subgraphs.pkl")
-parser.add_argument('--mask_9_cells_file', type=str, default="mask_9_cells_subgraphs.pkl") 
+parser.add_argument('--subgraphs', type=str, default="subgraphs_s_new.pkl") 
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -56,8 +54,8 @@ if __name__ == '__main__':
     TIME_DIM = 140256
     SPATIAL_POINTS_DIM = LAT_DIM * LON_DIM
 
-    checkpoint_cl = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/cl-230324-12/checkpoint_tmp_0.pth"
-    checkpoint_reg = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/reg-230324-12/checkpoint_1.pth"
+    checkpoint_cl = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/cl-230330-12/checkpoint_0.pth"
+    checkpoint_reg = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/reg-230330-12/checkpoint_4.pth"
     model_name_cl = "Classifier_test"
     model_name_reg = "Regressor_test"
 
@@ -80,7 +78,7 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args)
+    dataset = Dataset(args=args, time_shift=min(idx_time_test))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
@@ -92,7 +90,6 @@ if __name__ == '__main__':
 
     model_cl = Model_cl()
     model_reg = Model_reg()
-
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nClassifier:")
@@ -120,12 +117,8 @@ if __name__ == '__main__':
     tester = Tester()
     
     start = time.time()
-    y_pred_cl, y_pred_reg, y_pred = tester.test(model_cl, model_reg, dataloader, G_test.pr.shape, time_shift=min(idx_time_test), args=args)
+    tester.test(model_cl, model_reg, dataloader, G_test=G_test, args=args)
     end = time.time()
-
-    G_test["y_pred_cl"] = y_pred_cl
-    G_test["y_pred_reg"] = y_pred_reg
-    G_test["y_pred"] = y_pred
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f"\nDone. Testing concluded in {end-start} seconds.")

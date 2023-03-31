@@ -204,14 +204,15 @@ if __name__ == '__main__':
     edge_attr[:,1] = edge_attr[:,1] / edge_attr[:,1].max()
     
     # create the graph objects
-    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), pr=torch.tensor(pr_sel_test), low_res=torch.tensor(abs(cell_idx_array)).int(),
-            edge_index=torch.tensor(edge_index),edge_attr=torch.tensor(edge_attr))
+    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
+            pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
+            edge_attr=torch.tensor(edge_attr))
     G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(z_sel_s).unsqueeze(-1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    #with open('G_north_italy_test.pkl', 'wb') as f:
-    #    pickle.dump(G_test, f)
+    with open('G_north_italy_test.pkl', 'wb') as f:
+        pickle.dump(G_test, f)
     
     with open('G_north_italy_train.pkl', 'wb') as f:
         pickle.dump(G_train, f)
