@@ -5,7 +5,8 @@ import argparse
 import time
 import os
 import sys
-sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
+#sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
+sys.path.append("/home/vblasone/climate-DL/local_multiple")
 
 import models, dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
@@ -23,6 +24,8 @@ parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file', type=str, default="G_north_italy_train.pkl") 
 parser.add_argument('--graph_file_test', type=str, default="G_north_italy_test.pkl") 
 parser.add_argument('--subgraphs', type=str, default="subgraphs_s_new.pkl") 
+parser.add_argument('--checkpoint_cl', type=str, default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/cl-230330-12/checkpoint_0.pth")
+parser.add_argument('--checkpoint_reg', type=str, default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/reg-230330-12/checkpoint_4.pth")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -33,7 +36,7 @@ parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_
 
 #-- other
 parser.add_argument('--test_year', type=int, default=2016)
-parser.add_argument('--batch_size', type=int, default=128, help='batch size (global)')
+parser.add_argument('--batch_size', type=int, default=64, help='batch size (global)')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -54,8 +57,6 @@ if __name__ == '__main__':
     TIME_DIM = 140256
     SPATIAL_POINTS_DIM = LAT_DIM * LON_DIM
 
-    checkpoint_cl = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/cl-230330-12/checkpoint_0.pth"
-    checkpoint_reg = "/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/reg-230330-12/checkpoint_4.pth"
     model_name_cl = "Classifier_test"
     model_name_reg = "Regressor_test"
 
@@ -94,12 +95,12 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nClassifier:")
 
-    checkpoint_cl = load_checkpoint(model_cl, checkpoint_cl, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
+    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nRegressor:")
 
-    checkpoint_reg = load_checkpoint(model_reg, checkpoint_reg, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
+    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "gnn."], fine_tuning=False)
     
     model_cl = model_cl.cuda()
     model_reg = model_reg.cuda()
