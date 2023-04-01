@@ -182,7 +182,7 @@ class Regressor(nn.Module):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
-        self.num_node_features = num_node_features
+        self.gnn_node_dim = gru_hidden_dim * 25 + num_node_features
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -210,15 +210,19 @@ class Regressor(nn.Module):
         )
 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(num_node_features+self.gru_hidden_dim*25), 'x -> x'),
+            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
             (GATv2Conv(num_node_features+self.gru_hidden_dim*25, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),                                                     
             (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
-            nn.ReLU(),
-            (GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            nn.ReLU()
+            #(GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
             ])
+
+        self.linear = nn.Sequential(
+            nn.Linear(128, 1)
+            )
         
     def forward(self, X_batch, data_list):
         s = X_batch.shape
@@ -233,9 +237,9 @@ class Regressor(nn.Module):
         
         data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         
-        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
+        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())    # (batch_dim, 128)
+        y_pred = self.linear(y_pred)
         train_mask = data_batch.train_mask
-
         return y_pred[train_mask].squeeze(), data_batch.y[train_mask]     
 
 class Regressor_GNN(nn.Module):
