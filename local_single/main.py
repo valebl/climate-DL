@@ -26,12 +26,15 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-parser.add_argument('--data_file', type=str, default=None)
+#parser.add_argument('--data_file', type=str, default=None)
 parser.add_argument('--target_file', type=str, default=None)
-parser.add_argument('--mask_file', type=str, default=None)
+#parser.add_argument('--mask_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
-parser.add_argument('--checkpoint_ae_file', type=str)
-parser.add_argument('--weights_file', type=str, default=None)
+parser.add_argument('--checkpoint_file', type=str)
+#parser.add_argument('--weights_file', type=str, default=None)
+parser.add_argument('--graph_file', type=str, default=None)
+parser.add_argument('--mask_target_file', type=str, default=None)
+parser.add_argument('--subgraphs_file', type=str, default="subgraphs_local.pkl")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -47,8 +50,8 @@ parser.add_argument('--lr', type=float, default=0.01, help='initial learning rat
 parser.add_argument('--weight_decay', type=float, default=5e-4, help='weight decay (wd)')
 parser.add_argument('--fine_tuning',  action='store_true')
 parser.add_argument('--no-fine_tuning', dest='fine_tuning', action='store_false')
-parser.add_argument('--load_ae_checkpoint',  action='store_true')
-parser.add_argument('--no-load_ae_checkpoint', dest='load_ae_checkpoint', action='store_false')
+parser.add_argument('--load_checkpoint',  action='store_true')
+parser.add_argument('--no-load_checkpoint', dest='load_ae_checkpoint', action='store_false')
 
 #-- boolean
 parser.add_argument('--checkpoint_ctd', type=str, help='checkpoint to load to continue')
@@ -64,36 +67,52 @@ parser.add_argument('--model_name', type=str)
 parser.add_argument('--loss_fn', type=str, default="mse_loss")
 parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
+parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
 
 if __name__ == '__main__':
 
-    # wand
-    os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
-    os.environ['WANDB_USERNAME'] = 'valebl'
-    os.environ['WANDB_MODE'] = 'offline'
-    wandb.init(project="Classifier-test", group="ALL-GPUS")
-    #wandb.init(project="Classification", group="ALL-GPUS")
+    args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
-
-    args = parser.parse_args()
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
     if args.use_accelerate is True:
-        accelerator = Accelerator()
+        accelerator = Accelerator(log_with="wandb")
     else:
         accelerator = None
+    
+    # wand
+    if args.mode == 'train':
+        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+        os.environ['WANDB_USERNAME'] = 'valebl'
+        os.environ['WANDB_MODE'] = 'offline'
 
-    if args.model_type == 'cl' or 'reg':
-        net_arch = 'gnn'
-    else:
-        net_arch = 'ae'
+    if accelerator.init_trackers(
+            project_name=args.wandb_project_name
+            )        
 
+    if args.model_type == 'cl' or args.model_type == 'reg':
+        dataset_type = 'gnn'
+        collate_type = 'gnn'
+    elif args.model_type == 'ae':
+        dataset_type = 'ae'
+        collate_type = 'ae'
+    elif args.model_type == 'e':
+        dataset_type = 'e'
+        collate_type = 'e'
+    elif args.model_type == 'reg-ft-gnn':
+        dataset_type = 'ft_gnn'
+        collate_type = 'gnn'
+    
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, 'Dataset_pr_'+args.model_type)
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+net_arch)
+    Dataset = getattr(dataset, 'Dataset_'+dataset_type)
+    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
+    
+    model = Model()
+    epoch_start = 0
+    
     
     if args.loss_fn == 'sigmoid_focal_loss':
         loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)

@@ -68,7 +68,6 @@ parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
 parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
-parser.add_argument('--net_names',dest='accumulate', default=None)
 
 if __name__ == '__main__':
 
