@@ -132,7 +132,7 @@ if __name__ == '__main__':
         for j, lon_low_res in enumerate(lon_low_res_array):
             cell_idx = i * lon_low_res_dim + j
             cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, pr_sel, cell_idx,
-                    cell_idx_array, args.interval, 0.1, mask_1_cell_subgraphs, mask_9_cells_subgraphs)         
+                    cell_idx_array, args.interval, 0.25, mask_1_cell_subgraphs, mask_9_cells_subgraphs)         
             if cell_idx in valid_examples_space:
                 if flag_valid_example:
                     idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
@@ -147,7 +147,13 @@ if __name__ == '__main__':
 
     end = time.time()
     write_log(f'\nLoop took {end - start} s', args)
-
+ 
+    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
+    idx_test = np.array(idx_test)
+   
+    #with open('idx_test.pkl', 'wb') as f:
+    #    pickle.dump(idx_test, f)
+    
     #with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
     #    pickle.dump(cell_idx_array, f)
 
@@ -211,13 +217,11 @@ if __name__ == '__main__':
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    with open('G_north_italy_test.pkl', 'wb') as f:
+    with open('G_north_italy_test_all.pkl', 'wb') as f:
         pickle.dump(G_test, f)
     
-    with open('G_north_italy_train.pkl', 'wb') as f:
+    with open('G_north_italy_train_all.pkl', 'wb') as f:
         pickle.dump(G_train, f)
-
-    sys.exit()
     #
     #with open('target_train_cl.pkl', 'wb') as f:
     #    pickle.dump(pr_sel_train_cl, f)    
@@ -241,12 +245,6 @@ if __name__ == '__main__':
                                                                                      # if cell is not a valid example, the mask will be all nans
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
-    
-    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
-    idx_test = np.array(idx_test)
-
-    #with open('idx_test.pkl', 'wb') as f:
-    #    pickle.dump(idx_test, f)
 
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
     idx_train_ae = np.array(idx_train_ae)
@@ -264,7 +262,8 @@ if __name__ == '__main__':
             j = s % space_low_res_dim
             idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
             mask_9_cells_subgraphs[s,:] = np.in1d(abs(cell_idx_array), idx_list)
-            for t in idx_time_train:
+            for ti in idx_time_train:
+                t = ti-24 # idx_time_train starts from 24
                 if not (~mask_train_cl[mask_1,t]).all():
                     k = t * space_low_res_dim + s
                     idx_train_cl.append(k)
@@ -298,7 +297,7 @@ if __name__ == '__main__':
     #with open('mask_1_cell_subgraphs.pkl', 'wb') as f:
     #    pickle.dump(mask_1_cell_subgraphs, f)
 
-    with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
+    with open('mask_9_cells_subgraphs_all.pkl', 'wb') as f:
         pickle.dump(mask_9_cells_subgraphs, f)
 
     write_log("\nDone!", args)

@@ -12,11 +12,16 @@ parser.add_argument('--input_path', type=str, help='path to input directory', de
 parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
 parser.add_argument('--input_files_suffix', type=str, help='suffix for the input files (convenction: {parameter}{suffix}.nc)', default='_sliced')
 parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
-parser.add_argument('--output_file', type=str, help='path to output directory', default='input.pkl')
+parser.add_argument('--output_file', type=str, help='path to output directory', default='input_ds_standard.pkl')
 parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
+parser.add_argument('--statistics_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/')
+parser.add_argument('--means_file', type=str, default='means.pkl')
+parser.add_argument('--stds_file', type=str, default='stds.pkl')
 
 
 if __name__ == '__main__':
+
+    load_statistics = True
 
     args = parser.parse_args()
 
@@ -52,38 +57,43 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nStandardizing the dataset.')
     
-    means = np.zeros((5,5))
-    stds = np.zeros((5,5))
-
     input_ds_standard = np.zeros((input_ds.shape), dtype=np.float32)
-    for var in range(5):
-        for lev in range(5):
-            m = np.mean(input_ds[:,var,lev,:,:])
-            s = np.std(input_ds[:,var,lev,:,:])
-            input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
-            means[var, lev] = m
-            stds[var, lev] = s
+    
+    if not load_statistics:
+        means = np.zeros((5,5))
+        stds = np.zeros((5,5))
+
+        for var in range(5):
+            for lev in range(5):
+                m = np.mean(input_ds[:,var,lev,:,:])
+                s = np.std(input_ds[:,var,lev,:,:])
+                input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
+                means[var, lev] = m
+                stds[var, lev] = s
+        with open(args.output_path + "means.pkl", 'wb') as f:
+            pickle.dump(means, f)
+        with open(args.output_path + "stds.pkl", 'wb') as f:
+            pickle.dump(stds, f)
+    else:
+        with open(args.statistics_path+args.means_file, 'rb') as f:
+            means = pickle.load(f)
+        with open(args.statistics_path+args.stds_file, 'rb') as f:
+            stds = pickle.load(f)
+        for var in range(5):
+            for lev in range(5):
+                input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
 
     input_ds_standard = torch.tensor(input_ds_standard)
 
-    #mean_params = [np.mean(input_ds[:,i,:,:,:]) for i in range(n_params)]
-    #std_params = [np.std(input_ds[:,i,:,:,:]) for i in range(n_params)]
-    #input_ds_standard = np.zeros((input_ds.shape))
-    #for i in range(n_params):
-    #    input_ds_standard[:,i,:,:,:] = (input_ds[:,i,:,:,:]-mean_params[i])/std_params[i]
-    
     # write the input datasets to files
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nStarting to write the output file.')
     
+    #with open(args.output_path + args.output_file, 'wb') as f:
+    #    pickle.dump(input_ds, f)
+    
     with open(args.output_path + args.output_file, 'wb') as f:
-        pickle.dump(input_ds, f)
-    
-    with open(args.output_path + "means.pkl", 'wb') as f:
-        pickle.dump(means, f)
-    
-    with open(args.output_path + "stds.pkl", 'wb') as f:
-        pickle.dump(stds, f)
+        pickle.dump(input_ds_standard, f)
     
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f'\nOutput file written.\nPreprocessing finished.')
