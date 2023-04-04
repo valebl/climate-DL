@@ -1,4 +1,3 @@
-import numpy as np
 import pickle
 import sys
 
@@ -6,30 +5,26 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data._utils.collate import default_convert
 
-from torch_geometric.data import Data
-import copy
 import time
 
 class Dataset_pr(Dataset):
 
-    def __init__(self, args, pad=2, lat_dim=16, lon_dim=31): #path, input_file, target_file, data_file, idx_file, net_type, get_key=False, mask_file=None, weights_file=None, **kwargs):
+    def __init__(self, args, pad=2, lat_dim=16, lon_dim=31):
         super().__init__()
         self.pad = pad
         self.lat_low_res_dim = lat_dim # number of points in the GRIPHO rectangle (0.25 grid)
         self.lon_low_res_dim = lon_dim
         self.space_low_res_dim = self.lat_low_res_dim * self.lon_low_res_dim
-        #self.shift = shift # relative shift between GRIPHO and ERA5 (idx=0 in ERA5 corresponds to 2 in GRIPHO)
         self.args = args
         self.length = None
 
-    def _load_data_into_memory(self): # path, input_file, target_file, data_file, idx_file, net_type, mask_file, weights_file):
+    def _load_data_into_memory(self):
         raise NotImplementedError
     
     def __len__(self):
         return self.length
 
-
-class Dataset_ae(Dataset_pr):
+class Dataset_pr_ae(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,18 +42,13 @@ class Dataset_ae(Dataset_pr):
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_low_res_dim
         space_idx = k % self.space_low_res_dim
-        #k = self.idx_to_key[idx]
-        #time_idx = k[1]
-        #space_idx = k[0]
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
-        #-- derive input
-        #print(space_idx, lat_idx, lon_idx)
         input = torch.zeros((25, 5, 5, 6, 6))
         input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input
 
-class Dataset_e(Dataset_ae):
+class Dataset_e(Dataset_pr_ae):
     
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]
@@ -70,13 +60,13 @@ class Dataset_e(Dataset_ae):
         input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input, k 
 
-class Dataset_gnn(Dataset_pr):
+class Dataset_pr_gnn(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.mask_target, self.subgraphs = self._load_data_into_memory()
-        self.t_input=0
-        self.t_gnn=0
+        #self.t_input=0
+        #self.t_gnn=0
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -96,7 +86,7 @@ class Dataset_gnn(Dataset_pr):
         return input, idx_to_key, target, graph, mask_target, subgraphs
 
     def __getitem__(self, idx):
-        t0 = time.time()
+        #t0 = time.time()
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_low_res_dim
         space_idx = k % self.space_low_res_dim
@@ -107,18 +97,18 @@ class Dataset_gnn(Dataset_pr):
         lon_lat_idx_list = torch.tensor([[ii, jj] for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         for i, idx in enumerate(lon_lat_idx_list):
             input[i, :] = self.input[time_idx - 24 : time_idx+1, :, :, idx[0] - self.pad + 2 : idx[0] + self.pad + 4, idx[1] - self.pad + 2 : idx[1] + self.pad + 4]
-        t1 = time.time()
-        self.t_input += (t1 - t0)
+        #t1 = time.time()
+        #self.t_input += (t1 - t0)
         #-- derive gnn data
         subgraph = self.subgraphs[space_idx].cuda()
         mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx].cuda() # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[subgraph.mask_subgraph]
         y = self.target[subgraph.mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y.cuda()
-        self.t_gnn += (time.time() - t1)
+        #self.t_gnn += (time.time() - t1)
         return input, subgraph
     
-class Dataset_gnn_test(Dataset_pr):
+class Dataset_pr_gnn_test(Dataset_pr):
 
     def __init__(self, time_shift, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -158,7 +148,7 @@ class Dataset_gnn_test(Dataset_pr):
         subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_subgraph]
         return input, subgraph
 
-class Dataset_ft_gnn(Dataset_gnn):
+class Dataset_pr_ft_gnn(Dataset_pr_gnn):
 
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
@@ -188,7 +178,6 @@ def custom_collate_fn_ae(batch):
     input = torch.stack(batch)
     input = default_convert(input)
     return input
-
 
 def custom_collate_fn_e(batch):
     input = torch.stack([item[0] for item in batch])

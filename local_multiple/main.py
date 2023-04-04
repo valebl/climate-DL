@@ -1,5 +1,3 @@
-import wandb
-import numpy as np
 import os
 import sys
 import time
@@ -10,7 +8,6 @@ from torch import nn
 import torchvision.ops.focal_loss
 
 import models
-import utils
 import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
@@ -27,12 +24,10 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
 parser.add_argument('--target_file', type=str, default=None)
-parser.add_argument('--idx_file', type=str, default=None)
+parser.add_argument('--idx_file', type=str)
 parser.add_argument('--checkpoint_file', type=str, default=None)
 parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
-#parser.add_argument('--mask_1_cell_file', type=str, default=None)
-#parser.add_argument('--mask_9_cells_file', type=str, default=None) 
 parser.add_argument('--subgraphs_file', type=str, default="subgraphs.pkl")
 
 #-- output files
@@ -88,8 +83,6 @@ if __name__ == '__main__':
         os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
         os.environ['WANDB_USERNAME'] = 'valebl'
         os.environ['WANDB_MODE'] = 'offline'
-        #wandb.init(project=args.wandb_project_name, group="ALL-GPUS")
-        #wandb.init(project="Classification", group="ALL-GPUS")
 
         accelerator.init_trackers(
             project_name=args.wandb_project_name
@@ -109,7 +102,7 @@ if __name__ == '__main__':
         collate_type = 'gnn'
 
     Model = getattr(models, args.model_name)
-    Dataset = getattr(dataset, 'Dataset_'+dataset_type)
+    Dataset = getattr(dataset, 'Dataset_pr_'+dataset_type)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
    
     model = Model()
@@ -172,7 +165,6 @@ if __name__ == '__main__':
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %")
     
-
 #-----------------------------------------------------
 #------------------ LOAD PARAMETERS ------------------
 #-----------------------------------------------------
@@ -219,7 +211,6 @@ if __name__ == '__main__':
             model, dataloader = accelerator.prepare(model, dataloader)
     else:
         model = model.cuda()
-        
     
 #-----------------------------------------------------
 #----------------------- TRAIN -----------------------
@@ -236,8 +227,6 @@ if __name__ == '__main__':
         encoder.get_encoding(model, dataloader, accelerator, args)
 
     end = time.time()
-
-    #print(dataset.t_input, dataset.t_gnn)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
