@@ -5,8 +5,8 @@ import argparse
 import time
 import os
 import sys
-#sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
-sys.path.append("/home/vblasone/climate-DL/local_multiple")
+sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple")
+#sys.path.append("/home/vblasone/climate-DL/local_multiple")
 
 import models, dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
@@ -19,7 +19,7 @@ parser.add_argument('--output_path', type=str, help='path to output directory', 
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
+parser.add_argument('--idx_file', type=str, default="idx_test_dec_2016.pkl")
 parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file', type=str, default="G_north_italy_train.pkl") 
 parser.add_argument('--graph_file_test', type=str, default="G_north_italy_test.pkl") 
@@ -28,7 +28,7 @@ parser.add_argument('--checkpoint_cl', type=str, default="/m100_work/ICT23_ESP_C
 parser.add_argument('--checkpoint_reg', type=str, default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/reg-230330-12/checkpoint_4.pth")
 
 #-- output files
-parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
+parser.add_argument('--log_file', type=str, default='log_dec.txt', help='log file')
 
 #-- boolean
 parser.add_argument('--use_accelerate',  action='store_true')
@@ -36,7 +36,7 @@ parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_
 
 #-- other
 parser.add_argument('--test_year', type=int, default=2016)
-parser.add_argument('--batch_size', type=int, default=64, help='batch size (global)')
+parser.add_argument('--batch_size', type=int, default=128, help='batch size (global)')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
         f.write(f"\nDone. Testing concluded in {end-start} seconds.")
         f.write("\nWrite the files.")
 
-    with open(args.output_path + "G_predictions.pkl", 'wb') as f:
+    with open(args.output_path + "G_predictions_dec_2016.pkl", 'wb') as f:
         pickle.dump(G_test, f)
 
     with open(args.output_path + args.log_file, 'a') as f:

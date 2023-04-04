@@ -157,14 +157,14 @@ class Trainer(object):
             y_pred, y = model(X, data)
             loss = loss_fn(y_pred, y)
             accelerator.backward(loss)
-            #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),0.2)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
-            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 
-                'lr': lr_scheduler.get_last_lr()[0], 'step':step}) #, 'grad_max':grad_max})
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'step':step})
+                #'lr': lr_scheduler.get_last_lr()[0]}) #, 'grad_max':grad_max})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            lr_scheduler.step()
+            #lr_scheduler.step()
             step += 1
             if accelerator.is_main_process:
                 if step % 5000 == 0:

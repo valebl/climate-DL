@@ -210,18 +210,20 @@ class Regressor(nn.Module):
         )
 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
-            (GATv2Conv(num_node_features+self.gru_hidden_dim*25, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
-            (geometric_nn.BatchNorm(256), 'x -> x'),
-            nn.ReLU(),                                                     
-            (GATv2Conv(256, 128, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
-            (geometric_nn.BatchNorm(128), 'x -> x'),
-            nn.ReLU()
-            #(GATv2Conv(128, 1, aggr='mean', edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            #(geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
+            (GATv2Conv(self.gnn_node_dim, self.gnn_node_dim, aggr='sum', dropout=0.6, edge_dim=2),  'x, edge_index, edge_attr -> x'), 
+            #(geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
+            #nn.ReLU(),                                                     
+            (GATv2Conv(self.gnn_node_dim, self.gnn_node_dim, aggr='sum', dropout=0.6, edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            #(geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
+            #nn.ReLU(),
+            (GATv2Conv(self.gnn_node_dim, self.gnn_node_dim, aggr='sum', dropout=0.6, edge_dim=2), 'x, edge_index, edge_attr -> x'),
+            #(geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
+            #nn.ReLU()
             ])
 
         self.linear = nn.Sequential(
-            nn.Linear(128, 1)
+            nn.Linear(self.gnn_node_dim, 1)
             )
         
     def forward(self, X_batch, data_list):
