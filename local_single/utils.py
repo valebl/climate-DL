@@ -36,11 +36,29 @@ def accuracy_binary_one(prediction, target):
     acc = correct_items.sum().item() / prediction.shape[0]  
     return acc
 
+def accuracy_binary_one_class1(prediction, target):
+    prediction_class = torch.where(prediction > 0.5, 1.0, 0.0)
+    correct_items = (prediction_class == target)[target==1.0]
+    if correct_items.shape[0] > 0:
+        acc_class1 = correct_items.sum().item() / correct_items.shape[0]
+        return acc_class1
+    else:
+        return 0.0
+
 def accuracy_binary_two(prediction, target):
     prediction_class = torch.argmax(prediction, dim=-1).squeeze()
     correct_items = (prediction_class == target)
     acc = correct_items.sum().item() / prediction.shape[0]  
     return acc
+
+def accuracy_binary_two_class1(prediction, target):
+    prediction_class = torch.argmax(prediction, dim=-1).squeeze()
+    correct_items = (prediction_class == target)[target==1.0]
+    if correct_items.shape[0] > 0:
+        acc_class1 = correct_items.sum().item() / correct_items.shape[0]
+        return acc_class1
+    else:
+        return 0.0
 
 def weighted_mse_loss(input_batch, target_batch, weights):
     return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
@@ -95,7 +113,7 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            lr_scheduler.step() 
+            #lr_scheduler.step() 
             if accelerator.is_main_process and step % 50000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
@@ -112,22 +130,26 @@ class Trainer(object):
     def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.95, gamma=2):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
+        acc_class1_meter = AverageMeter()
         start = time.time()
         step = 0
         for X, data in dataloader:
             optimizer.zero_grad()
             y_pred, y = model(X, data)
+            #loss = loss_fn(y_pred, y)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            performance = accuracy_binary_one(y_pred, y)
+            performance = accuracy_binary_two(y_pred, y)
+            acc_class1 = accuracy_binary_two_class1(y_pred, y)
             performance_meter.update(val=performance, n=X.shape[0])
+            acc_class1_meter.update(val=acc_class1, n=X.shape[0])
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            accelerator.log({'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
-                'accuracy avg': performance_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
-            lr_scheduler.step()
+            accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
+                'accuracy avg': performance_meter.avg, 'accuracy class1 avg': acc_class1_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
+            #lr_scheduler.step()
             if accelerator.is_main_process:
                 if step % 5000 == 0:
                     checkpoint_dict = {
@@ -138,7 +160,7 @@ class Trainer(object):
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
             step += 1
         end = time.time()
-        accelerator.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg})
+        accelerator.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg, 'accuracy class1 epoch': acc_class1_meter.avg})
         if accelerator.is_main_process:
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
@@ -148,13 +170,14 @@ class Trainer(object):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0 
-        t0 = time.time()
+        #t0 = time.time()
+        device = 'cuda' if accelerator is None else accelerator.device
         for X, data in dataloader:
             optimizer.zero_grad()
-            y_pred, y = model(X, data)
+            y_pred, y = model(X, data, device)
             loss = loss_fn(y_pred, y)
             accelerator.backward(loss)
-            torch.nn.utils.clip_grad_norm_(model.parameters(),0.2)
+            #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
@@ -171,7 +194,9 @@ class Trainer(object):
                         "epoch": epoch,
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
-            t0 = time.time()
+            #t0 = time.time()
+            #print("OK")
+            #sys.exit()
         end = time.time()
         accelerator.log({'loss epoch': loss_meter.avg})
         if accelerator.is_main_process:
@@ -179,16 +204,16 @@ class Trainer(object):
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
     
     def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=0):
+        model.train()
         epoch_type = 'reg' if 'reg' in args.model_type else args.model_type
         train_epoch = getattr(self, f"_train_epoch_{epoch_type}")
-        model.train()
         for epoch in range(epoch_start, epoch_start+args.epochs):
             if accelerator.is_main_process:
                 with open(args.output_path+args.log_file, 'a') as f:
                     f.write(f"\nEpoch {epoch+1} --- learning rate {optimizer.param_groups[0]['lr']:.8f}")
             train_epoch(epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler)
-            #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            #    lr_scheduler.step()
+            if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+                lr_scheduler.step()
             if accelerator.is_main_process:
                 checkpoint_dict = {
                     "parameters": model.state_dict(),
@@ -231,7 +256,7 @@ class Tester(object):
                 X = X.cuda()
                 model_cl(X, data, G_test)
                 model_reg(X, data, G_test)
-                if step % 1000 == 0:
+                if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")
                 step += 1 

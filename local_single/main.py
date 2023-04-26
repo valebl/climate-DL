@@ -11,7 +11,7 @@ import models
 import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
-from utils import Trainer, Get_Encoder
+from utils import Trainer, Get_encoder
 
 from accelerate import Accelerator
 
@@ -26,9 +26,9 @@ parser.add_argument('--input_file', type=str, default="input_standard.pkl")
 parser.add_argument('--target_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
 parser.add_argument('--checkpoint_file', type=str, default=None)
-parser.add_argument('--graph_file', type=str, default=None)
+parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
-parser.add_argument('--subgraphs_file', type=str, default="subgraphs_local.pkl")
+parser.add_argument('--subgraphs_file', type=str, default="subgraphs.pkl")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -63,6 +63,8 @@ parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
 parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
+parser.add_argument('--lon_dim', type=int, default=31)
+parser.add_argument('--lat_dim', type=int, default=16)
 
 if __name__ == '__main__':
 
@@ -77,7 +79,7 @@ if __name__ == '__main__':
         accelerator = Accelerator(log_with="wandb")
     else:
         accelerator = None
-    
+
     # wand
     if args.mode == 'train':
         os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
@@ -87,7 +89,7 @@ if __name__ == '__main__':
         accelerator.init_trackers(
             project_name=args.wandb_project_name
             )
-    
+
     if args.model_type == 'cl' or args.model_type == 'reg':
         dataset_type = 'gnn'
         collate_type = 'gnn'
@@ -100,23 +102,23 @@ if __name__ == '__main__':
     elif args.model_type == 'reg-ft-gnn':
         dataset_type = 'ft_gnn'
         collate_type = 'gnn'
-    
+
     Model = getattr(models, args.model_name)
     Dataset = getattr(dataset, 'Dataset_pr_'+dataset_type)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
-    
+   
     model = Model()
     epoch_start = 0
-    
+
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'w') as f:
             f.write("Starting the training...")
             f.write(f"Cuda is available: {torch.cuda.is_available()}. There are {torch.cuda.device_count()} available GPUs.")
-
+            
 #-----------------------------------------------------
 #-------------------- TRAIN UTILS --------------------
-#-----------------------------------------------------        
-    
+#-----------------------------------------------------
+
     if args.mode == 'train':
 
         if args.loss_fn == 'sigmoid_focal_loss':
@@ -143,13 +145,13 @@ if __name__ == '__main__':
             optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=args.weight_decay)
         else:
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-
+                
 #-----------------------------------------------------
 #-------------- DATASET AND DATALOADER ---------------
 #-----------------------------------------------------
 
     #-- create the dataset
-    dataset = Dataset(args)   
+    dataset = Dataset(args, lon_dim=args.lon_dim, lat_dim=args.lat_dim)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
@@ -211,7 +213,7 @@ if __name__ == '__main__':
             model, dataloader = accelerator.prepare(model, dataloader)
     else:
         model = model.cuda()
-
+    
 #-----------------------------------------------------
 #----------------------- TRAIN -----------------------
 #-----------------------------------------------------
