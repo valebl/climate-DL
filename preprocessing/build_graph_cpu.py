@@ -1,7 +1,6 @@
 import numpy as np
 import xarray as xr
 import pickle
-import matplotlib.pyplot as plt
 import time
 import argparse
 import sys
@@ -19,13 +18,16 @@ parser.add_argument('--target_path_file', type=str, default='/m100_work/ICT23_ES
 parser.add_argument('--topo_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
 parser.add_argument('--input_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/SLICED/q_sliced.nc')
 
-# lat lon grid values
+#-- lat lon grid values
 parser.add_argument('--lon_min', type=float, default=6.50)
 parser.add_argument('--lon_max', type=float, default=14.25)
 parser.add_argument('--lat_min', type=float, default=43.50)
 parser.add_argument('--lat_max', type=float, default=47.50)
 parser.add_argument('--interval', type=float, default=0.25)
 parser.add_argument('--time_dim', type=float, default=140256)
+
+#-- other
+parser.add_argument('--suffix', type=str, default='')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     bool_lon = np.logical_and(lon >= lon_min, lon <= lon_max)
@@ -63,7 +65,7 @@ def write_log(s, args, mode='a'):
 def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016):
     idx_time_train = []
     idx_time_test = []
-    for idx_time_y in idx_time_years[:first_test_year-2000-3]:
+    for idx_time_y in idx_time_years[:first_test_year-2000-2]:
         idx_time_train += idx_time_y
     idx_time_train += idx_time_years[first_test_year-2000-2][:-31*24]
     idx_time_test = idx_time_years[first_test_year-2000-2][-31*24:] + idx_time_years[-1]
@@ -85,6 +87,9 @@ if __name__ == '__main__':
 
     with open(args.output_path + "idx_time_test.pkl", 'wb') as f:
         pickle.dump(idx_time_test, f)
+
+    with open(args.output_path + "idx_time_train.pkl", 'wb') as f:
+        pickle.dump(idx_time_train, f)
 
     write_log("\nStart!", args, 'w')
 
@@ -132,7 +137,7 @@ if __name__ == '__main__':
         for j, lon_low_res in enumerate(lon_low_res_array):
             cell_idx = i * lon_low_res_dim + j
             cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, pr_sel, cell_idx,
-                    cell_idx_array, args.interval, 0.25, mask_1_cell_subgraphs, mask_9_cells_subgraphs)         
+                    cell_idx_array, args.interval, 0.1, mask_1_cell_subgraphs, mask_9_cells_subgraphs)         
             if cell_idx in valid_examples_space:
                 if flag_valid_example:
                     idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
@@ -148,28 +153,39 @@ if __name__ == '__main__':
     end = time.time()
     write_log(f'\nLoop took {end - start} s', args)
  
+    # keep only the graph cells space idxs
+    mask_graph_cells_space = np.in1d(abs(cell_idx_array), graph_cells_space)
+    mask_1_cell_subgraphs = mask_1_cell_subgraphs[:,mask_graph_cells_space]
+    mask_1_cell_subgraphs = torch.tensor(mask_1_cell_subgraphs)
+    mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
+    mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
+    
+    with open('mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(mask_1_cell_subgraphs, f)
+    
+    with open('mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(mask_9_cells_subgraphs, f)
+    
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
    
-    #with open('idx_test.pkl', 'wb') as f:
-    #    pickle.dump(idx_test, f)
+    idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train if s in valid_examples_space]
+    idx_train_ae = np.array(idx_train_ae)
+
+    with open('idx_test.pkl', 'wb') as f:
+        pickle.dump(idx_test, f)
     
+    with open(args.output_path + 'idx_train_ae.pkl', 'wb') as f:
+        pickle.dump(idx_train_ae, f)
+
     #with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
     #    pickle.dump(cell_idx_array, f)
 
-    #with open('valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
-    #    pickle.dump(valid_examples_space, f)
+    with open(args.output_path + 'valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
+        pickle.dump(valid_examples_space, f)
 
-    #with open('graph_cells_space.pkl', 'wb') as f:      # all low res cells that are used (examples + surroundings)
-    #    pickle.dump(graph_cells_space, f)
-    
-    # keep only the graph cells space idxs
-    mask_graph_cells_space = np.in1d(abs(cell_idx_array), graph_cells_space)
-    mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
-    mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
-
-    #with open('mask_9_cells_subgraphs.pkl', 'wb') as f:
-    #    pickle.dump(mask_9_cells_subgraphs, f)
+    with open(args.output_path + 'graph_cells_space.pkl', 'wb') as f:      # all low res cells that are used (examples + surroundings)
+        pickle.dump(graph_cells_space, f)
     
     lon_sel = lon_sel[mask_graph_cells_space]
     lat_sel = lat_sel[mask_graph_cells_space]
@@ -180,14 +196,22 @@ if __name__ == '__main__':
 
     threshold = 0.1 # mm
     pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
-    pr_sel_train = pr_sel[:,min(idx_time_train):max(idx_time_train)+1]
+    pr_sel_train = pr_sel[:,:max(idx_time_train)+1]
     pr_sel_train_cl = np.array([np.where(pr >= threshold, 1, 0) for pr in pr_sel_train], dtype=np.float32)
     pr_sel_train_cl[np.isnan(pr_sel_train)] = np.nan
     pr_sel_train_reg = np.array([np.where(pr >= threshold, np.log1p(pr), np.nan) for pr in pr_sel_train], dtype=np.float32)
     pr_sel_test = pr_sel[:,min(idx_time_test):max(idx_time_test)+1]
 
     z_sel_s = (z_sel - z_sel.mean()) / z_sel.std()
+    lon_sel_s = (lon_sel - lon_sel.mean()) / lon_sel.std()
+    lat_sel_s = (lat_sel - lat_sel.mean()) / lat_sel.std()
     
+    lon_lat_z_s = np.empty((z_sel_s.shape[0], 3))
+
+    lon_lat_z_s[:,0] = lon_sel_s
+    lon_lat_z_s[:,1] = lat_sel_s
+    lon_lat_z_s[:,2] = z_sel_s
+
     pos = np.column_stack((lon_sel,lat_sel))
 
     edge_index = np.empty((2,0), dtype=int)
@@ -209,26 +233,55 @@ if __name__ == '__main__':
     edge_attr[:,0] = edge_attr[:,0] / edge_attr[:,0].max() 
     edge_attr[:,1] = edge_attr[:,1] / edge_attr[:,1].max()
     
+    lon_m1 = edge_attr[:,0]<-0.5
+    lon_0 = np.logical_and(edge_attr[:,0]>-0.5, edge_attr[:,0]<0.5)
+    lon_1 = edge_attr[:,0]>0.5
+    lat_m1 = edge_attr[:,1]<-0.5
+    lat_0 = np.logical_and(edge_attr[:,1]>-0.5, edge_attr[:,1]<0.5)
+    lat_1 = edge_attr[:,1]>0.5
+
+    bool_N = np.logical_and(lon_0, lat_m1)     # (0, -1)
+    bool_NE = np.logical_and(lon_m1, lat_m1)   # (-1,-1)
+    bool_E = np.logical_and(lon_m1, lat_0)      # (-1, 0)
+    bool_SE = np.logical_and(lon_m1, lat_1)    # (-1, 1)
+    bool_S = np.logical_and(lon_0, lat_1)      # (0, 1)
+    bool_SO = np.logical_and(lon_1, lat_1)     # (1, 1)
+    bool_O = np.logical_and(lon_1, lat_0)      # (1, 0)
+    bool_NO = np.logical_and(lon_1, lat_m1)    # (1, m)
+
+    edge_attr_cat = np.empty(edge_attr.shape[0], dtype=int)
+    
+    edge_attr_cat[bool_N] = 1
+    edge_attr_cat[bool_NE] = 2
+    edge_attr_cat[bool_E] = 3
+    edge_attr_cat[bool_SE] = 4
+    edge_attr_cat[bool_S] = 5
+    edge_attr_cat[bool_SO] = 6
+    edge_attr_cat[bool_O] = 7
+    edge_attr_cat[bool_NO] = 8
+    
     # create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
-            edge_attr=torch.tensor(edge_attr))
-    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(z_sel_s).unsqueeze(-1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
+            edge_attr=torch.tensor(edge_attr_cat))
+    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    with open('G_north_italy_test_all.pkl', 'wb') as f:
-        pickle.dump(G_test, f)
+    #with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
+    #    pickle.dump(G_test, f)
     
-    with open('G_north_italy_train_all.pkl', 'wb') as f:
+    with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)
-    #
-    #with open('target_train_cl.pkl', 'wb') as f:
-    #    pickle.dump(pr_sel_train_cl, f)    
-    # 
-    #with open('target_train_reg.pkl', 'wb') as f:
-    #    pickle.dump(pr_sel_train_reg, f)    
-    # 
+    
+    sys.exit()
+
+    with open(args.output_path + 'target_train_cl.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(pr_sel_train_cl), f)    
+     
+    with open(args.output_path + 'target_train_reg.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(pr_sel_train_reg), f)    
+     
     write_log(f"\nIn total, preprocessing took {time.time() - start} seconds", args)    
 
     # create the indexes list for the dataloader
@@ -236,34 +289,21 @@ if __name__ == '__main__':
 
     start = time.time()
 
-    idx_train_ae = []
     idx_train_cl = []
     idx_train_reg = []
     
-    mask_1_cell_subgraphs = np.zeros((space_low_res_dim, n_nodes)).astype(bool)
-    mask_9_cells_subgraphs = np.zeros((space_low_res_dim,n_nodes)).astype(bool)   # maps each low_res_cell to the corresponding 9 cells mask
-                                                                                     # if cell is not a valid example, the mask will be all nans
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
-
-    idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train]
-    idx_train_ae = np.array(idx_train_ae)
-
-    #with open('idx_train_ae.pkl', 'wb') as f:
-    #    pickle.dump(idx_train_ae, f)
 
     c = 0
     for s in range(space_low_res_dim):
         mask_1 = np.in1d(cell_idx_array, s) # shape = (n_nodes)
-        mask_1_cell_subgraphs[s,:] = mask_1
         if s in valid_examples_space:
             c += 1
             i = s // space_low_res_dim
             j = s % space_low_res_dim
             idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
-            mask_9_cells_subgraphs[s,:] = np.in1d(abs(cell_idx_array), idx_list)
-            for ti in idx_time_train:
-                t = ti-24 # idx_time_train starts from 24
+            for t in idx_time_train:
                 if not (~mask_train_cl[mask_1,t]).all():
                     k = t * space_low_res_dim + s
                     idx_train_cl.append(k)
@@ -271,35 +311,24 @@ if __name__ == '__main__':
                         idx_train_reg.append(k)
             if c % 10 == 0:
                 write_log(f"\nSpace idx {s} done.", args)     
-                #total_memory, used_memory, free_memory = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
-                #write_log(f"\nRAM memory {round((used_memory/total_memory) * 100, 2)} %", args)
     
     idx_train_cl = np.array(idx_train_cl)
     idx_train_reg = np.array(idx_train_reg)
 
-    mask_1_cell_subgraphs = torch.tensor(mask_1_cell_subgraphs)
-    mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
-
     write_log(f"\nCreating the idx array took {time.time() - start} seconds", args)    
 
-    #with open('idx_train_cl.pkl', 'wb') as f:
-    #    pickle.dump(idx_train_cl, f)
+    with open(args.output_path + 'idx_train_cl.pkl', 'wb') as f:
+        pickle.dump(idx_train_cl, f)
 
-    #with open('idx_train_reg.pkl', 'wb') as f:
-    #    pickle.dump(idx_train_reg, f)
+    with open(args.output_path + 'idx_train_reg.pkl', 'wb') as f:
+        pickle.dump(idx_train_reg, f)
     
-    #with open('mask_train_cl.pkl', 'wb') as f:
-    #    pickle.dump(mask_train_cl, f)
+    with open(args.output_path + 'mask_train_cl.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_cl), f)
 
-    #with open('mask_train_reg.pkl', 'wb') as f:
-    #    pickle.dump(mask_train_reg, f)
+    with open(args.output_path + 'mask_train_reg.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_reg), f)
     
-    #with open('mask_1_cell_subgraphs.pkl', 'wb') as f:
-    #    pickle.dump(mask_1_cell_subgraphs, f)
-
-    with open('mask_9_cells_subgraphs_all.pkl', 'wb') as f:
-        pickle.dump(mask_9_cells_subgraphs, f)
-
     write_log("\nDone!", args)
 
 

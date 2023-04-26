@@ -23,8 +23,6 @@ parser.add_argument('--mask_9_cells_file', type=str, default="mask_9_cells_subgr
 # other
 parser.add_argument('--lat_dim', type=int, default=16)
 parser.add_argument('--lon_dim', type=int, default=31)
-parser.add_argument('--test', action='store_true')
-parser.add_argument('--train', dest='test', action='store_false')
 
 if __name__ == "__main__":
 
@@ -53,8 +51,8 @@ if __name__ == "__main__":
         subgraph = graph.subgraph(subset=mask_subgraph)
         cell_idx_list = torch.tensor([ii * args.lon_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         idx_list_mapped = torch.sum(torch.stack([(subgraph.low_res==idx)* j for j, idx in enumerate(cell_idx_list)]), dim=0)
-        subgraph["mask_1_cell"] = mask_1_cell[space_idx].cpu()
-        subgraph["mask_subgraph"] = mask_subgraph.cpu()
+        subgraph["mask_1_cell"] = mask_1_cell[space_idx].cpu()  # (n_nodes)
+        subgraph["mask_9_cells"] = mask_subgraph.cpu()         # (n_nodes)
         subgraph["idx_list"] = cell_idx_list
         subgraph["idx_list_mapped"] = idx_list_mapped
         subgraphs[space_idx] = subgraph

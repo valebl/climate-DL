@@ -21,7 +21,7 @@ parser.add_argument('--stds_file', type=str, default='stds.pkl')
 
 if __name__ == '__main__':
 
-    load_statistics = True
+    load_statistics = False
 
     args = parser.parse_args()
 
@@ -60,16 +60,14 @@ if __name__ == '__main__':
     input_ds_standard = np.zeros((input_ds.shape), dtype=np.float32)
     
     if not load_statistics:
-        means = np.zeros((5,5))
-        stds = np.zeros((5,5))
-
+        means = np.zeros((5))
+        stds = np.zeros((5))
         for var in range(5):
-            for lev in range(5):
-                m = np.mean(input_ds[:,var,lev,:,:])
-                s = np.std(input_ds[:,var,lev,:,:])
-                input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
-                means[var, lev] = m
-                stds[var, lev] = s
+            m = np.mean(input_ds[:,var,:,:,:])
+            s = np.std(input_ds[:,var,:,:,:])
+            input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-m)/s
+            means[var] = m
+            stds[var] = s
         with open(args.output_path + "means.pkl", 'wb') as f:
             pickle.dump(means, f)
         with open(args.output_path + "stds.pkl", 'wb') as f:
@@ -80,8 +78,31 @@ if __name__ == '__main__':
         with open(args.statistics_path+args.stds_file, 'rb') as f:
             stds = pickle.load(f)
         for var in range(5):
-            for lev in range(5):
-                input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
+            input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-means[var])/stds[var]    
+
+    #if not load_statistics:
+    #    means = np.zeros((5,5))
+    #    stds = np.zeros((5,5))
+    #
+    #    for var in range(5):
+    #        for lev in range(5):
+    #            m = np.mean(input_ds[:,var,lev,:,:])
+    #            s = np.std(input_ds[:,var,lev,:,:])
+    #            input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
+    #            means[var, lev] = m
+    #            stds[var, lev] = s
+    #    with open(args.output_path + "means.pkl", 'wb') as f:
+    #        pickle.dump(means, f)
+    #    with open(args.output_path + "stds.pkl", 'wb') as f:
+    #        pickle.dump(stds, f)
+    #else:
+    #    with open(args.statistics_path+args.means_file, 'rb') as f:
+    #        means = pickle.load(f)
+    #    with open(args.statistics_path+args.stds_file, 'rb') as f:
+    #        stds = pickle.load(f)
+    #    for var in range(5):
+    #        for lev in range(5):
+    #            input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
 
     input_ds_standard = torch.tensor(input_ds_standard)
 
