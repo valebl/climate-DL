@@ -18,8 +18,8 @@ parser.add_argument('--input_path', type=str, help='path to input directory', de
 parser.add_argument('--output_path', type=str, help='path to output directory', default="/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_multiple/predictions/")
 
 #-- input files
-parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-parser.add_argument('--idx_file', type=str, default="idx_test_dec_2016.pkl")
+parser.add_argument('--input_file', type=str, default="input_standard_v.pkl")
+parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
 parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file', type=str, default="G_north_italy_train.pkl") 
 parser.add_argument('--graph_file_test', type=str, default="G_north_italy_test.pkl") 
@@ -51,8 +51,8 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'w') as f:
         f.write("Starting.")
 
-    LAT_DIM = 16 # number of points in the GRIPHO rectangle (0.25 grid)
-    LON_DIM = 31
+    LAT_DIM = 7 # number of points in the GRIPHO rectangle (0.25 grid)
+    LON_DIM = 7
     SPACE_IDXS_DIM = LAT_DIM * LON_DIM
     TIME_DIM = 140256
     SPATIAL_POINTS_DIM = LAT_DIM * LON_DIM
@@ -73,13 +73,13 @@ if __name__ == '__main__':
 #----------------- DATASET AND MODELS ----------------
 #-----------------------------------------------------
 
-    Dataset = getattr(dataset, 'Dataset_gnn_test')
+    Dataset = getattr(dataset, 'Dataset_pr_test')
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_gnn')
     
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, time_shift=min(idx_time_test))
+    dataset = Dataset(args=args, lon_dim=7, lat_dim=7, time_min=130728, time_max=140255)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
@@ -125,7 +125,7 @@ if __name__ == '__main__':
         f.write(f"\nDone. Testing concluded in {end-start} seconds.")
         f.write("\nWrite the files.")
 
-    with open(args.output_path + "G_predictions_dec_2016.pkl", 'wb') as f:
+    with open(args.output_path + "G_predictions_2016.pkl", 'wb') as f:
         pickle.dump(G_test, f)
 
     with open(args.output_path + args.log_file, 'a') as f:
