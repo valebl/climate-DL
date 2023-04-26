@@ -63,6 +63,8 @@ parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
 parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
+parser.add_argument('--lon_dim', type=int, default=31)
+parser.add_argument('--lat_dim', type=int, default=16)
 
 if __name__ == '__main__':
 
@@ -149,7 +151,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
 
     #-- create the dataset
-    dataset = Dataset(args)   
+    dataset = Dataset(args, lon_dim=args.lon_dim, lat_dim=args.lat_dim)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
