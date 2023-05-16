@@ -62,13 +62,16 @@ def write_log(s, args, mode='a'):
     with open(args.output_path + args.log_file, mode) as f:
         f.write(s)
 
-def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016):
+def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2014, end_year=2016):
     idx_time_train = []
     idx_time_test = []
-    for idx_time_y in idx_time_years[:first_test_year-2000-2]:
+    idx_first_test_year = first_test_year-2000-1
+    for idx_time_y in idx_time_years[:idx_first_test_year-1]:
         idx_time_train += idx_time_y
-    idx_time_train += idx_time_years[first_test_year-2000-2][:-31*24]
-    idx_time_test = idx_time_years[first_test_year-2000-2][-31*24:] + idx_time_years[-1]
+    idx_time_train += idx_time_years[idx_first_test_year-1][:-31*24]
+    idx_time_test = idx_time_years[idx_first_test_year-1][-31*24:]
+    for y in range(first_test_year, end_year + 1): 
+        idx_time_test += idx_time_years[y-2000-1]
     idx_time_train.sort(); idx_time_test.sort()
     for i in range(24):
         idx_time_train.remove(i)
@@ -160,10 +163,10 @@ if __name__ == '__main__':
     mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
     mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
     
-    with open('mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+    with open(args.output_path + 'mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(mask_1_cell_subgraphs, f)
     
-    with open('mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+    with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(mask_9_cells_subgraphs, f)
     
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
@@ -172,7 +175,7 @@ if __name__ == '__main__':
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train if s in valid_examples_space]
     idx_train_ae = np.array(idx_train_ae)
 
-    with open('idx_test.pkl', 'wb') as f:
+    with open(args.output_path + 'idx_test.pkl', 'wb') as f:
         pickle.dump(idx_test, f)
     
     with open(args.output_path + 'idx_train_ae.pkl', 'wb') as f:
@@ -263,14 +266,16 @@ if __name__ == '__main__':
     # create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
-            edge_attr=torch.tensor(edge_attr_cat))
+            edge_attr=torch.tensor(edge_attr_cat), z=torch.tensor(lon_lat_z_s))
     G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
             low_res=torch.tensor(abs(cell_idx_array)).int())
     #G_train_reg = Data(x=z_sel_s, edge_index=edge_index, edge_attr=edge_attr, low_res=cell_idx_array, y=pr_sel_train_reg)
 
-    #with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
-    #    pickle.dump(G_test, f)
+    with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(G_test, f)
     
+    sys.exit()
+
     with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)
     

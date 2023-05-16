@@ -133,23 +133,25 @@ class Trainer(object):
         acc_class1_meter = AverageMeter()
         start = time.time()
         step = 0
+        device = 'cuda' if accelerator is None else accelerator.device
         for X, data in dataloader:
             optimizer.zero_grad()
-            y_pred, y = model(X, data)
+            y_pred, y = model(X, data, device)
             #loss = loss_fn(y_pred, y)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
             #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
-            performance = accuracy_binary_two(y_pred, y)
-            acc_class1 = accuracy_binary_two_class1(y_pred, y)
+            performance = accuracy_binary_one(y_pred, y)
+            acc_class1 = accuracy_binary_one_class1(y_pred, y)
             performance_meter.update(val=performance, n=X.shape[0])
             acc_class1_meter.update(val=acc_class1, n=X.shape[0])
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
                 'accuracy avg': performance_meter.avg, 'accuracy class1 avg': acc_class1_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
             #lr_scheduler.step()
+            step += 1
             if accelerator.is_main_process:
                 if step % 5000 == 0:
                     checkpoint_dict = {
@@ -158,7 +160,8 @@ class Trainer(object):
                         "epoch": epoch,
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
-            step += 1
+            #print("OK")
+            #sys.exit()
         end = time.time()
         accelerator.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg, 'accuracy class1 epoch': acc_class1_meter.avg})
         if accelerator.is_main_process:
@@ -247,15 +250,16 @@ class Get_encoder(object):
 
 class Tester(object):
 
-    def test(self, model_cl, model_reg, dataloader, G_test, args):
+    def test(self, model_cl, model_reg, dataloader, G_test, args, accelerator=None):
         model_cl.eval()
         model_reg.eval()
         step = 0
+        device = 'cuda' if accelerator is None else accelerator.device
         with torch.no_grad():    
             for X, data in dataloader:
                 X = X.cuda()
-                model_cl(X, data, G_test)
-                model_reg(X, data, G_test)
+                model_cl(X, data, G_test, device)
+                model_reg(X, data, G_test, device)
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")

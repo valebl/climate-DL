@@ -115,20 +115,19 @@ class Dataset_pr_test(Dataset_pr):
         super().__init__(*args, **kwargs)
         self.time_min = time_min
         self.time_max = time_max
-        self.input, self.idx_to_key, self.graph, self.subgraphs = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.subgraphs, self.test_graph = self._load_data_into_memory()
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
             input = pickle.load(f)
         with open(self.args.input_path + self.args.idx_file,'rb') as f:
             idx_to_key = pickle.load(f)   
-        with open(self.args.input_path + self.args.graph_file, 'rb') as f:
-            graph = pickle.load(f)
         with open(self.args.input_path + self.args.subgraphs, 'rb') as f:
             subgraphs = pickle.load(f)
+        with open(self.args.input_path + self.args.graph_file_test, 'rb') as f:
+            test_graph = pickle.load(f)
         self.length = len(idx_to_key)
-        self.low_res_abs = abs(graph.low_res)
-        return input, idx_to_key, graph, subgraphs
+        return input, idx_to_key, subgraphs, test_graph
 
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
@@ -137,16 +136,16 @@ class Dataset_pr_test(Dataset_pr):
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
         #-- derive input
-        lon_lat_idx_list = torch.tensor([[ii, jj] for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        input = torch.zeros((9, 25, 5, 5, 6, 6))
-        for i, idx in enumerate(lon_lat_idx_list):
-            input[i, :] = self.input[time_idx - 24 : time_idx+1, :, :, idx[0] - self.pad + 2 : idx[0] + self.pad + 4, idx[1] - self.pad + 2 : idx[1] + self.pad + 4]
+        input = torch.zeros((25, 5, 5, 6, 6)) # (time, var, lev, lat, lon)
+        input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         ##-- derive gnn data
-        subgraph = self.subgraphs[space_idx].cuda()
-        cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        subgraph["idx_list"] = cell_idx_list
+        subgraph = self.subgraphs[space_idx].clone()
+        #cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
+        #subgraph["idx_list"] = cell_idx_list
         subgraph["time_idx"] = time_idx - self.time_min
-        subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_9_cells]
+        subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_1_cell]
+        y = self.test_graph.y[subgraph.mask_1_cell, time_idx - self.time_min]
+        subgraph["y"] = y
         return input, subgraph
 
 class Dataset_pr_ft_gnn(Dataset_pr_gnn):

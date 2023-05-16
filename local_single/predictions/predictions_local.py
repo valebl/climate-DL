@@ -1,165 +1,133 @@
 import numpy as np
 import pickle
-import pandas as pd
 import torch
-
-from dataset import Clima_dataset as Dataset
-from dataset import custom_collate_fn_ae, custom_collate_fn_get_key, custom_collate_fn_gnn
-from models import Regressor_test as Model
-from torch_geometric.data import Data, Batch
-from models import Classifier_test as Model_classifier
-
+import argparse
+import time
+import os
 import sys
+sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_single")
+#sys.path.append("/home/vblasone/climate-DL/local_multiple")
+
+import models, dataset
+from utils import load_encoder_checkpoint as load_checkpoint, Tester
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+#-- paths
+parser.add_argument('--input_path', type=str, help='path to input directory')
+parser.add_argument('--output_path', type=str, help='path to output directory')
+
+#-- input files
+parser.add_argument('--input_file', type=str, default="input_standard.pkl")
+parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
+parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
+parser.add_argument('--graph_file_test', type=str) 
+parser.add_argument('--subgraphs', type=str) 
+parser.add_argument('--checkpoint_cl', type=str)
+parser.add_argument('--checkpoint_reg', type=str)
+
+#-- output files
+parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
+
+#-- boolean
+parser.add_argument('--use_accelerate',  action='store_true')
+parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_false')
+
+#-- other
+parser.add_argument('--test_year', type=int, default=2016)
+parser.add_argument('--batch_size', type=int, default=128, help='batch size (global)')
+parser.add_argument('--lon_dim', type=int, default=7)
+parser.add_argument('--lat_dim', type=int, default=7)
+parser.add_argument('--model_name_cl', type=str, default='Classifier_old_test')
+parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
-def getitem(dataset, k):
-    time_idx = k // dataset.SPACE_IDXS_DIM
-    space_idx = k % dataset.SPACE_IDXS_DIM
-    lat_idx = space_idx // dataset.LON_DIM
-    lon_idx = space_idx % dataset.LON_DIM
-    input = dataset.input[time_idx - 24 : time_idx+1, :, :, lat_idx - dataset.PAD + 2 : lat_idx + dataset.PAD + 4, lon_idx - dataset.PAD + 2 : lon_idx + dataset.PAD + 4]
-    edge_index = torch.tensor(dataset.data[space_idx]['edge_index'])
-    x = torch.tensor(dataset.data[space_idx]['x'])
-    y = torch.tensor(dataset.target[k])
-    data = Data(x=x, edge_index=edge_index, y=y)
-    return input, data
 
 if __name__ == '__main__':
 
-    year = 2016
-    device = 'cuda:0'
+    args = parser.parse_args()
 
-    work_dir = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/predictions/results_2016/"
-    data_dir = "/m100_work/ICT22_ESP_0/vblasone/DATA/north_01-15/"
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
 
-    log_file = f"log_{year}.txt"
+    with open(args.output_path + args.log_file, 'w') as f:
+        f.write("Starting.")
 
-    with open(work_dir+log_file, 'w') as f:
-        f.write("Starting...")
-
-    LAT_DIM = 43 # number of points in the GRIPHO rectangle (0.25 grid)
-    LON_DIM = 49
-    SPACE_IDXS_DIM = LAT_DIM * LON_DIM
+    #LAT_DIM = 7 # number of points in the GRIPHO rectangle (0.25 grid)
+    #LON_DIM = 7
     TIME_DIM = 140256
-    SPATIAL_POINTS_DIM = LAT_DIM * LON_DIM
+    spatial_points_dim = args.lat_dim * args.lon_dim
 
-    checkpoint_cl = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/cl/checkpoint_3.pth"
-    checkpoint_reg = "/m100_work/ICT22_ESP_0/vblasone/climate-DL/local_single/reg/checkpoint_49.pth"
-
-    input_path = "/data/"
-    input_file = "input_standard.pkl"
-    idx_to_key_file = "idx_to_key_test.pkl"
-    data_file = "gnn_data_standard.pkl"
-    target_file = "gnn_target_test.pkl"
-    
-    with open(work_dir+log_file, 'a') as f:
-        f.write("\nbuilding the dataset...")
-
-    net_type = 'gnn'
-    dataset = Dataset(path="", input_file=input_path+input_file, data_file=input_path+data_file, target_file=data_dir+target_file,
-        idx_file=data_dir+idx_to_key_file, net_type=net_type, get_key=False)
-
-    with open(work_dir+log_file, 'a') as f:
-        f.write("\ndone!")
-
-    with open(data_dir+idx_to_key_file, 'rb') as f:
+    with open(args.input_path + args.idx_file, 'rb') as f:
         test_keys = pickle.load(f)
-
-    model = Model()
-    model.eval()
-
-    checkpoint = torch.load(checkpoint_reg)
-
-    try:
-        model.load_state_dict(checkpoint["parameters"])
-    except:
-        for name, param in checkpoint["parameters"].items():
-            param = param.data
-            if name.startswith("module."):
-                name = name.partition("module.")[2]
-            model.state_dict()[name].copy_(param)
     
-    model = model.to(device)
-
-    model_cl = Model_classifier()
-    model_cl.eval()
-
-    checkpoint_cl = torch.load(checkpoint_cl)
-
-    try:
-        model_cl.load_state_dict(checkpoint_cl["parameters"])
-    except:
-        for name, param in checkpoint_cl["parameters"].items():
-            param = param.data
-            if name.startswith("module."):
-                name = name.partition("module.")[2]
-            model_cl.state_dict()[name].copy_(param)
-
-    model_cl = model_cl.to(device)
-
-    y_pred_dict = dict()
-    y_pred_reg_dict = dict()
-    y_pred_cl_dict = dict()
+    with open(args.input_path + args.idx_time_test, 'rb') as f:
+        idx_time_test = pickle.load(f)
     
-    y_dict = dict()
+    with open(args.input_path + args.graph_file_test, 'rb') as f:
+        G_test = pickle.load(f)
 
-    i = 0
-    batch = []
-    keys = []
+#-----------------------------------------------------
+#----------------- DATASET AND MODELS ----------------
+#-----------------------------------------------------
 
-    with open(work_dir+log_file, 'a') as f:
-        f.write("\nstarting the loop...")
-
-    for j, k in enumerate(test_keys):
-        if i < 512:
-            batch.append(getitem(dataset, k))
-            keys.append(k)
-            i += 1
-        else:
-            X, data = custom_collate_fn_gnn(batch)
-            y_pred, y, batch_idxs = model(X, data, device)
-            y_pred_class, _, batch_idxs_class = model_cl(X, data, device)
-            for ii, ki in enumerate(keys):
-                idxi = torch.where(batch_idxs == ii)
-                idxi_class = torch.where(batch_idxs_class == ii)
-                y_pred_dict[ki] = (y_pred[idxi] * y_pred_class[idxi_class]).detach().cpu().numpy()
-                y_pred_reg_dict[ki] = y_pred[idxi].detach().cpu().numpy()
-                y_pred_cl_dict[ki] = y_pred_class[idxi_class].detach().cpu().numpy()
-                y_dict[ki] = y[idxi].detach().cpu().numpy()
-            if (j % 512) % 100 == 0:
-                with open(work_dir+log_file, 'a') as f:
-                    f.write(f"\nbatch {j // 512} done")
-            i = 0
-            batch = []
-            keys = []
-            batch.append(getitem(dataset, k))
-            keys.append(k)
+    Dataset = getattr(dataset, 'Dataset_pr_test')
+    custom_collate_fn = getattr(dataset, 'custom_collate_fn_gnn')
     
-    with open(work_dir+log_file, 'a') as f:
-        f.write(f"\nProcessing the last batch...")
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nBuilding the dataset and the dataloader.")
 
-    if i > 0:
-        X, data = custom_collate_fn_gnn(batch)
-        y_pred, y, batch_idxs = model(X, data, device)
-        y_pred_class, y_class, batch_idxs_class = model_cl(X, data, device)
-        for ii, ki in enumerate(keys):
-            idxi = torch.where(batch_idxs == ii)
-            idxi_class = torch.where(batch_idxs_class == ii)
-            y_pred_dict[ki] = (y_pred[idxi] * y_pred_class[idxi_class]).detach().cpu().numpy()
-            y_pred_reg_dict[ki] = y_pred[idxi].detach().cpu().numpy()
-            y_pred_cl_dict[ki] = y_pred_class[idxi_class].detach().cpu().numpy()
-            y_dict[ki] = y[idxi].detach().cpu().numpy()
-        with open(work_dir+log_file, 'a') as f:
-            f.write(f"\nbatch {j // 512 + 1} done")
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=130728, time_max=140255) #time_min=113951, time_max=140255)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
-    with open(work_dir+log_file, 'a') as f:
-        f.write("\nwriting the files...")
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nDone!")
+        f.write("\nInstantiate models and load checkpoints.\n")
 
-    with open(work_dir+f"y_pred_{year}_small.pkl", 'wb') as f:
-        pickle.dump(y_pred_dict, f)
+    Model_cl = getattr(models, args.model_name_cl)
+    Model_reg = getattr(models, args.model_name_reg)
 
-    with open(work_dir+log_file, 'a') as f:
-        f.write("\ndone! :)")
+    model_cl = Model_cl()
+    model_reg = Model_reg()
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nClassifier:")
+
+    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False)
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nRegressor:")
+
+    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False)
+    
+    model_cl = model_cl.cuda()
+    model_reg = model_reg.cuda()
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\n\nDone!")
+
+#-----------------------------------------------------
+#-------------------- PREDICTIONS --------------------
+#-----------------------------------------------------
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write("\nStarting the test.")
+
+    tester = Tester()
+    
+    start = time.time()
+    tester.test(model_cl, model_reg, dataloader, G_test=G_test, args=args)
+    end = time.time()
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f"\nDone. Testing concluded in {end-start} seconds.")
+        f.write("\nWrite the files.")
+
+    with open(args.output_path + "G_predictions_2016.pkl", 'wb') as f:
+        pickle.dump(G_test, f)
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f"\nDone.")
 
 
