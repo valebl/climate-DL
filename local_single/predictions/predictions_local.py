@@ -59,11 +59,11 @@ if __name__ == '__main__':
     TIME_DIM = 140256
     spatial_points_dim = args.lat_dim * args.lon_dim
 
-    with open(args.input_path + args.idx_file, 'rb') as f:
-        test_keys = pickle.load(f)
+    #with open(args.input_path + args.idx_file, 'rb') as f:
+    #    test_keys = pickle.load(f)
     
-    with open(args.input_path + args.idx_time_test, 'rb') as f:
-        idx_time_test = pickle.load(f)
+    #with open(args.input_path + args.idx_time_test, 'rb') as f:
+    #    idx_time_test = pickle.load(f)
     
     with open(args.input_path + args.graph_file_test, 'rb') as f:
         G_test = pickle.load(f)

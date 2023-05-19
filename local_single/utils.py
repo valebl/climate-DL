@@ -127,7 +127,7 @@ class Trainer(object):
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.95, gamma=2):
+    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.9, gamma=2):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
         acc_class1_meter = AverageMeter()
@@ -140,7 +140,7 @@ class Trainer(object):
             #loss = loss_fn(y_pred, y)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
-            #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             performance = accuracy_binary_one(y_pred, y)
@@ -180,7 +180,7 @@ class Trainer(object):
             y_pred, y = model(X, data, device)
             loss = loss_fn(y_pred, y)
             accelerator.backward(loss)
-            #torch.nn.utils.clip_grad_norm_(model.parameters(),5)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
             loss_meter.update(val=loss.item(), n=X.shape[0])    
             #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
@@ -260,9 +260,11 @@ class Tester(object):
                 X = X.cuda()
                 model_cl(X, data, G_test, device)
                 model_reg(X, data, G_test, device)
+                
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
-                        f.write(f"\nStep {step} done.")
+                        f.write(f"\nStep {step} done.") # {G_test.pr_reg.isnan().sum() / (2334 * 9528)}, {G_test.pr_cl.isnan().sum() / (2334 * 9528)}")
                 step += 1 
         G_test["pr"] = G_test.pr_cl * G_test.pr_reg
+        
         return

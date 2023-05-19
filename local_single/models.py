@@ -232,21 +232,14 @@ class Classifier_old(nn.Module):
         encoding = self.dense(encoding)
 
         for i, data in enumerate(data_list):
+            data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
             features[:,:3] = data.z[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        print(device, data_list[0].x)
-        print(device, (data_list[0].x[:,3:] == encoding[i,:]).all())
-
         data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         
-        print(device, data_batch[0].x)
-        print(device, (data_bacth[0].x[:,3:] == encoding[i,:]).all())
-
-        sys.exit()
-
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)    # (batch_dim, 128)
         
         train_mask = data_batch.train_mask
@@ -305,6 +298,7 @@ class Regressor_old(nn.Module):
         encoding = self.dense(encoding)
 
         for i, data in enumerate(data_list):
+            data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
             features[:,:3] = data.z[:,:3]
             features[:,3:] = encoding[i,:]
@@ -453,10 +447,11 @@ class Regressor_old_test(Regressor_old):
 
         data_list = data_batch.to_data_list()        
         
-        for i, data in enumerate(data_list):
-            y_pred_i = data.x[data.test_mask].squeeze().cpu()
+        for data in data_list:
+            y_pred_i = data.x.squeeze().cpu()
             G_test['pr_reg'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i >= 0.1, y_pred_i, torch.tensor(0.0, dtype=y_pred_i.dtype))
-        return     
+        
+        return
 
 
 class Classifier_old_test(Classifier_old):
@@ -482,11 +477,12 @@ class Classifier_old_test(Classifier_old):
         data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index)
         
-        data_list = data_batch.to_data_list()        
-        
-        for i, data in enumerate(data_list):
-            y_pred_i = data.x[data.test_mask].squeeze()
+        data_list = data_batch.to_data_list()       
+
+        for data in data_list:
+            y_pred_i = data.x.squeeze()
             G_test['pr_cl'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i > 0.5, 1.0, 0.0).cpu()        
+        
         return
 
 

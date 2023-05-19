@@ -102,8 +102,8 @@ class Dataset_pr_gnn(Dataset_pr):
         #-- derive gnn data
         subgraph = self.subgraphs[space_idx].clone()#.cuda()
         #print(subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
-        mask_y_nodes = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
-        subgraph["train_mask"] = mask_y_nodes[subgraph.mask_1_cell]
+        train_mask = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
+        subgraph["train_mask"] = train_mask[subgraph.mask_1_cell]
         y = self.target[subgraph.mask_1_cell, time_idx] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y#.cuda()
         #self.t_gnn += (time.time() - t1)
@@ -139,11 +139,12 @@ class Dataset_pr_test(Dataset_pr):
         input = torch.zeros((25, 5, 5, 6, 6)) # (time, var, lev, lat, lon)
         input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         ##-- derive gnn data
+        #print(idx, k, time_idx, space_idx, lat_idx, lon_idx)
         subgraph = self.subgraphs[space_idx].clone()
         #cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         #subgraph["idx_list"] = cell_idx_list
         subgraph["time_idx"] = time_idx - self.time_min
-        subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_1_cell]
+        #subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_1_cell]
         y = self.test_graph.y[subgraph.mask_1_cell, time_idx - self.time_min]
         subgraph["y"] = y
         return input, subgraph
@@ -164,7 +165,6 @@ class Dataset_pr_ft_gnn(Dataset_pr_gnn):
         
         #-- derive gnn data
         mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
-        #print(mask_subgraph)
         subgraph = self.graph.subgraph(subset=mask_subgraph)
         mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
         subgraph["train_mask"] = mask_y_nodes[mask_subgraph]

@@ -62,7 +62,7 @@ def write_log(s, args, mode='a'):
     with open(args.output_path + args.log_file, mode) as f:
         f.write(s)
 
-def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2014, end_year=2016):
+def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016, end_year=2016):
     idx_time_train = []
     idx_time_test = []
     idx_first_test_year = first_test_year-2000-1
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     
     with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(mask_9_cells_subgraphs, f)
-    
+   
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
    
@@ -205,9 +205,20 @@ if __name__ == '__main__':
     pr_sel_train_reg = np.array([np.where(pr >= threshold, np.log1p(pr), np.nan) for pr in pr_sel_train], dtype=np.float32)
     pr_sel_test = pr_sel[:,min(idx_time_test):max(idx_time_test)+1]
 
-    z_sel_s = (z_sel - z_sel.mean()) / z_sel.std()
-    lon_sel_s = (lon_sel - lon_sel.mean()) / lon_sel.std()
-    lat_sel_s = (lat_sel - lat_sel.mean()) / lat_sel.std()
+    use_precomputed_means_stds = True
+
+    if use_precomputed_means_stds:
+        write_log(f"\nUsing statistics over italy for lat, lon and z.", args)
+        with open("lat_lon_z_best.pkl", 'rb') as f:
+            lat_lon_z_best = pickle.load(f)
+        z_sel_s = (z_sel - np.mean(lat_lon_z_best[:,2])) / np.std(lat_lon_z_best[:,2])
+        lon_sel_s = (lon_sel - np.mean(lat_lon_z_best[:,1])) / np.std(lat_lon_z_best[:,1])
+        lat_sel_s = (lat_sel - np.mean(lat_lon_z_best[:,0])) / np.std(lat_lon_z_best[:,0])
+    else:
+        write_log(f"\nUsing local statistics for lat, lon and z.", args)
+        z_sel_s = (z_sel - z_sel.mean()) / z_sel.std()
+        lon_sel_s = (lon_sel - lon_sel.mean()) / lon_sel.std()
+        lat_sel_s = (lat_sel - lat_sel.mean()) / lat_sel.std()
     
     lon_lat_z_s = np.empty((z_sel_s.shape[0], 3))
 
@@ -273,14 +284,10 @@ if __name__ == '__main__':
 
     with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_test, f)
-    
-    sys.exit()
 
     with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)
     
-    sys.exit()
-
     with open(args.output_path + 'target_train_cl.pkl', 'wb') as f:
         pickle.dump(torch.tensor(pr_sel_train_cl), f)    
      
