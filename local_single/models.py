@@ -222,7 +222,7 @@ class Classifier_old(nn.Module):
             nn.Sigmoid()
             ])
 
-    def forward(self, X_batch, data_list, device):
+    def forward(self, X_batch, data_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -231,19 +231,20 @@ class Classifier_old(nn.Module):
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)        # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
 
-        for i, data in enumerate(data_list):
+        for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
             features[:,:3] = data.z[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)    # (batch_dim, 128)
         
         train_mask = data_batch.train_mask
-        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()[train_mask]     
+
+        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
 
 
 class Regressor_old(nn.Module):
@@ -288,7 +289,7 @@ class Regressor_old(nn.Module):
             (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'),
             ])
 
-    def forward(self, X_batch, data_list, device):
+    def forward(self, X_batch, data_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -297,19 +298,19 @@ class Regressor_old(nn.Module):
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)        # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
 
-        for i, data in enumerate(data_list):
+        for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
             features[:,:3] = data.z[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)    # (batch_dim, 128)
         #y_pred = self.linear(y_pred)
         train_mask = data_batch.train_mask
-        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()[train_mask]     
+        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()
 
 class Regressor(nn.Module):
     def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3):
@@ -449,8 +450,8 @@ class Regressor_old_test(Regressor_old):
         
         for data in data_list:
             y_pred_i = data.x.squeeze().cpu()
-            G_test['pr_reg'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i >= 0.1, y_pred_i, torch.tensor(0.0, dtype=y_pred_i.dtype))
-        
+            G_test['pr_reg'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i >= 0.1, y_pred_i, torch.tensor(0.0, dtype=y_pred_i.dtype)) 
+            #G_test['pr_reg'][data.mask_1_cell, data.time_idx] = torch.where(data.target >= 0.1, data.target, torch.tensor(0.0, dtype=y_pred_i.dtype))
         return
 
 
@@ -482,7 +483,6 @@ class Classifier_old_test(Classifier_old):
         for data in data_list:
             y_pred_i = data.x.squeeze()
             G_test['pr_cl'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i > 0.5, 1.0, 0.0).cpu()        
-        
         return
 
 

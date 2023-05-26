@@ -7,6 +7,8 @@ from torch.utils.data._utils.collate import default_convert
 
 import time
 
+from torch_geometric.data import Data
+
 class Dataset_pr(Dataset):
 
     def __init__(self, args, pad=2, lat_dim=16, lon_dim=31):
@@ -100,11 +102,15 @@ class Dataset_pr_gnn(Dataset_pr):
         #t1 = time.time()
         #self.t_input += (t1 - t0)
         #-- derive gnn data
-        subgraph = self.subgraphs[space_idx].clone()#.cuda()
+#        subgraph = self.subgraphs[space_idx].clone()#.cuda()
+        s = self.subgraphs[space_idx]
+        subgraph = Data(edge_index = s['edge_index'], edge_attr = s['edge_attr'], num_nodes = s['num_nodes'], z = s['z'], low_res = s['low_res'], mask_1_cell = s['mask_1_cell'])
         #print(subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
-        train_mask = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
-        subgraph["train_mask"] = train_mask[subgraph.mask_1_cell]
-        y = self.target[subgraph.mask_1_cell, time_idx] # shape = (n_nodes_subgraph,)
+        #train_mask = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
+        #subgraph["train_mask"] = train_mask[subgraph.mask_1_cell]
+        train_mask = self.mask_target[:,time_idx][subgraph.mask_1_cell]
+        subgraph["train_mask"] = train_mask    
+        y = self.target[subgraph.mask_1_cell, time_idx][train_mask] # shape = (n_nodes_subgraph,)
         subgraph["y"] = y#.cuda()
         #self.t_gnn += (time.time() - t1)
         return input, subgraph
