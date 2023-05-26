@@ -51,7 +51,12 @@ if __name__ == "__main__":
         #subgraph["mask_9_cells"] = mask_subgraph.cpu()         # (n_nodes)
         #subgraph["idx_list"] = cell_idx_list
         #subgraph["idx_list_mapped"] = idx_list_mapped
-        subgraphs[space_idx] = subgraph
+        #subgraphs[space_idx] = subgraph
+        s = dict()
+        for a in subgraph:
+            s[a[0]] = a[1]
+        subgraphs[space_idx] = s
+
         if space_idx % 10 == 0:
             print(f"Done until {space_idx}.")
     
