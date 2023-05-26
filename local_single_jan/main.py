@@ -17,6 +17,8 @@ from dataset import Clima_dataset as Dataset
 
 from accelerate import Accelerator
 
+import torchvision.ops.focal_loss
+
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
@@ -31,6 +33,8 @@ parser.add_argument('--mask_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
 parser.add_argument('--checkpoint_ae_file', type=str)
 parser.add_argument('--weights_file', type=str, default=None)
+parser.add_argument('--mask_target_file', type=str, default=None)
+parser.add_argument('--cell_idx_array_file', type=str, default=None)
 
 #-- output files
 parser.add_argument('--out_log_file', type=str, default='log.txt', help='log file')
@@ -64,6 +68,9 @@ parser.add_argument('--loss_fn', type=str, default="mse_loss")
 parser.add_argument('--net_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 
+#--input_path --output_path --input_file --data_file --target_file --idx_file --checkpoint_ae_file --pct_trainset --epochs --batch_size --step_size --lr --weight_decay --fine_tuning --load_ae_checkpoint
+#--checkpoint_ctd --ctd_training --use_accelerate --test_model --model_name --loss_fn --net_type --performance
+
 if __name__ == '__main__':
 
     torch.backends.cudnn.benchmark = True
@@ -80,11 +87,13 @@ if __name__ == '__main__':
 
     Model = getattr(models, args.model_name)
     train_epoch = getattr(utils, "train_epoch_"+args.net_type)
-    test_model = getattr(utils, "test_model_"+args.net_type)
+    #test_model = getattr(utils, "test_model_"+args.net_type)
     custom_collate_fn = getattr(dataset, "custom_collate_fn_"+args.net_type)
-    validate_model = getattr(utils, "validate_"+args.net_type)
-
-    if args.loss_fn == 'weighted_mse_loss' or args.loss_fn == 'mse_loss_mod':
+    #validate_model = getattr(utils, "validate_"+args.net_type)
+    
+    if args.loss_fn == 'sigmoid_focal_loss':
+        loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
+    elif args.loss_fn == 'weighted_mse_loss' or args.loss_fn == 'mse_loss_mod':
         loss_fn = getattr(utils, args.loss_fn)
     elif args.loss_fn == 'weighted_cross_entropy_loss':
         if accelerator is None:
@@ -112,7 +121,7 @@ if __name__ == '__main__':
     #-- create the dataset
     dataset = Dataset(path=args.input_path, input_file=args.input_file, data_file=args.data_file,
         target_file=args.target_file, idx_file=args.idx_file, net_type=args.net_type, 
-        mask_file=args.mask_file, weights_file=args.weights_file)
+        mask_file=args.mask_file, weights_file=args.weights_file, mask_target_file=args.mask_target_file, cell_idx_array_file=args.cell_idx_array_file)
 
     #-- split into trainset and testset
     generator=torch.Generator().manual_seed(42)
@@ -190,9 +199,9 @@ if __name__ == '__main__':
 
     start = time.time()
 
-    total_loss, loss_list = train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
+    train_model(model=model, dataloader=trainloader, loss_fn=loss_fn, optimizer=optimizer,
         num_epochs=args.epochs, log_path=args.output_path, log_file=args.out_log_file, train_epoch=train_epoch,
-        validate_model=validate_model, validationloader=validationloader, accelerator=accelerator, lr_scheduler=scheduler,
+        validate_model=None, validationloader=validationloader, accelerator=accelerator, lr_scheduler=scheduler,
         checkpoint_name=args.output_path+args.out_checkpoint_file, performance=args.performance, epoch_start=epoch_start)
 
     end = time.time()

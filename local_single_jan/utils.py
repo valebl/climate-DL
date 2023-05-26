@@ -202,8 +202,9 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
     for X, data in dataloader:
         device = 'cuda' if accelerator is None else accelerator.device
         optimizer.zero_grad()
-        y_pred, y, _  = model(X, data, device)
-        loss = loss_fn(y_pred, y)
+        y_pred, y = model(X, data, device)
+        loss = loss_fn(y_pred, y, alpha=0.9, gamma=2, reduction='mean')
+        #loss = loss_fn(y_pred, y)
         if accelerator is None:
             loss.backward()
         else:
@@ -217,15 +218,18 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
             perf = accuracy(y_pred, y)
             performance_meter.update(val=perf, n=X.shape[0])
             performance_meter.add_iter_loss()
+        
+        #print("OK!")
+        #sys.exit()
 
         if i % 5000 == 0:
-            validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
-            if intermediate:
-                with open(log_path+log_file, 'a') as f:
-                    if val_performance_meter is not None:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
-                    else:
-                        f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
+            #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+            #if intermediate:
+            #    with open(log_path+log_file, 'a') as f:
+            #        if val_performance_meter is not None:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}, val perf avg = {val_performance_meter.avg}.")
+            #        else:
+            #            f.write(f"\nValidation loss at iteration {i}, tot = {val_loss_meter.sum}, avg = {val_loss_meter.avg}")
         
             if accelerator is None or accelerator.is_main_process:
                 np.savetxt(log_path+"train_loss_iter.csv", loss_meter.avg_iter_list)
@@ -238,11 +242,11 @@ def train_epoch_gnn(model, dataloader, loss_fn, optimizer, lr_scheduler, loss_me
                     "optimizer": optimizer.state_dict(),
                     "epoch": epoch
                     }
-                torch.save(checkpoint_dict, log_path+"checkpoint.pth")
+                torch.save(checkpoint_dict, log_path+f"checkpoint_{epoch}_tmp.pth")
 
         i += 1
 
-    validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
+    #validate_model(model, validationloader, accelerator, loss_fn, val_loss_meter, val_performance_meter)
 
 
 #------ TRAIN ------  
@@ -310,5 +314,5 @@ def train_model(model, dataloader, loss_fn, optimizer, num_epochs,
                 "optimizer": optimizer.state_dict(),
                 "epoch": epoch,
                 }
-            torch.save(checkpoint_dict, checkpoint_name)
+            torch.save(checkpoint_dict, log_path+f"checkpoint_{epoch}.pth")
 

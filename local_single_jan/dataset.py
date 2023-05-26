@@ -10,7 +10,7 @@ from torch_geometric.data import Data
 
 class Clima_dataset(Dataset):
 
-    def _load_data_into_memory(self, path, input_file, target_file, data_file, idx_file, net_type, mask_file, weights_file):
+    def _load_data_into_memory(self, path, input_file, target_file, data_file, idx_file, net_type, mask_file, weights_file, cell_idx_array_file): #, mask_target_file):
         with open(path + input_file, 'rb') as f:
             input = pickle.load(f) 
             if self.net_type == "cnn":
@@ -39,23 +39,26 @@ class Clima_dataset(Dataset):
         else:
             data, mask, weights = None, None, None
 
-        return input, target, data, idx_to_key, mask, weights
+        with open(path + cell_idx_array_file, 'rb') as f:
+            cell_idx_array = pickle.load(f)
 
-    def __init__(self, path, input_file, target_file, data_file, idx_file, net_type, get_key=False, mask_file=None, weights_file=None, **kwargs):
+        return input, target, data, idx_to_key, mask, weights, cell_idx_array#, mask_target
+
+    def __init__(self, path, input_file, target_file, data_file, idx_file, net_type, mask_target_file=None, get_key=False, mask_file=None, weights_file=None, cell_idx_array_file=None, **kwargs):
         super().__init__()
         self.get_key = get_key
         self.PAD = 2
-        self.LAT_DIM = 43 # number of points in the GRIPHO rectangle (0.25 grid)
-        self.LON_DIM = 49
+        self.LAT_DIM = 7 # number of points in the GRIPHO rectangle (0.25 grid)
+        self.LON_DIM = 7
         self.SPACE_IDXS_DIM = self.LAT_DIM * self.LON_DIM
-        self.SHIFT = 2 # relative shift between GRIPHO and ERA5 (idx=0 in ERA5 corresponds to 2 in GRIPHO)
+        self.SHIFT = 0 # relative shift between GRIPHO and ERA5 (idx=0 in ERA5 corresponds to 2 in GRIPHO)
 
         self.net_type = net_type
         self.path = path
-        self.input_file, self.target_file, self.data_file, self.idx_file, self.mask_file, self.weights_file = input_file, target_file, data_file, idx_file, mask_file, weights_file
+        self.input_file, self.target_file, self.data_file, self.idx_file, self.mask_file, self.weights_file, self.cell_idx_array_file = input_file, target_file, data_file, idx_file, mask_file, weights_file, cell_idx_array_file
 
-        self.input, self.target, self.data, self.idx_to_key, self.mask, self.weights = self._load_data_into_memory(self.path,
-                self.input_file, self.target_file, self.data_file, self.idx_file, self.net_type, self.mask_file, self.weights_file)
+        self.input, self.target, self.data, self.idx_to_key, self.mask, self.weights, self.cell_idx_array = self._load_data_into_memory(self.path,
+                self.input_file, self.target_file, self.data_file, self.idx_file, self.net_type, self.mask_file, self.weights_file, self.cell_idx_array_file) #, self.mask_target_file)
         self.length = len(self.idx_to_key)
 
     def __len__(self):
@@ -67,6 +70,7 @@ class Clima_dataset(Dataset):
         space_idx = k % self.SPACE_IDXS_DIM
         lat_idx = space_idx // self.LON_DIM
         lon_idx = space_idx % self.LON_DIM
+        #print(k, space_idx, time_idx)
         #-- derive input
         if self.get_key:
             return k
@@ -76,7 +80,8 @@ class Clima_dataset(Dataset):
             input = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.PAD + 2 : lat_idx + self.PAD + 4, lon_idx - self.PAD + 2 : lon_idx + self.PAD + 4]
         #-- derive gnn data
         if self.net_type == "cnn" or self.net_type == "gnn" or self.net_type == "gru":
-            y = torch.tensor(self.target[k])
+            #y = torch.tensor(self.target[k])
+            y = torch.tensor(self.target[self.cell_idx_array == space_idx, time_idx])
             if self.net_type == "cnn" or self.net_type == "gru":
                 return input, y
             else:
@@ -86,12 +91,14 @@ class Clima_dataset(Dataset):
                     mask = torch.tensor(self.mask[k].astype(bool)) 
                     if self.weights is not None:
                         weights = torch.tensor(self.weights[k])
-                        data = Data(x=x, edge_index=edge_index, y=y, mask=mask, weights=weights)
+                        graph = Data(x=x, edge_index=edge_index, y=y, mask=mask, weights=weights)
                     else:
-                        data = Data(x=x, edge_index=edge_index, y=y, mask=mask, weights=None)
+                        graph = Data(x=x, edge_index=edge_index, y=y, mask=mask, weights=None)
                 else:
-                    data = Data(x=x, edge_index=edge_index, y=y, mask=None, weights=None)
-                return input, data
+                    graph = Data(x=x, edge_index=edge_index, y=y)
+                #train_mask = self.mask_target[:,time_idx][self.data[space_idx]['mask_1_cell']]
+                #graph = graph.subgraph(torch.tensor(train_mask))
+                return input, graph
         else:
             return input
 
@@ -109,6 +116,7 @@ def custom_collate_fn_cnn(batch):
 
 def custom_collate_fn_gnn(batch):
     input = np.array([item[0] for item in batch])
+    #input = torch.stack([item[0] for item in batch])
     data = [item[1] for item in batch]
     input = default_convert(input)
     return input, data
