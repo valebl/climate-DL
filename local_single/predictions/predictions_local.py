@@ -8,7 +8,8 @@ import sys
 sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_single")
 #sys.path.append("/home/vblasone/climate-DL/local_multiple")
 
-import models, dataset
+import models
+import dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
