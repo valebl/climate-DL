@@ -31,7 +31,7 @@ parser.add_argument('--checkpoint_file', type=str, default=None)
 parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
 parser.add_argument('--subgraphs_file', type=str, default=None)
-parser.add_argument('--cell_idxs_file', type=str, default=None)
+#parser.add_argument('--cell_idxs_file', type=str, default=None)
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')

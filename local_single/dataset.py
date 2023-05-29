@@ -66,7 +66,7 @@ class Dataset_pr_gnn(Dataset_pr):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.input, self.idx_to_key, self.target, self.graph, self.subgraphs, self.cell_idxs = self._load_data_into_memory()
+        self.input, self.idx_to_key, self.target, self.graph, self.subgraphs, self.mask_target = self._load_data_into_memory()
         #self.t_input=0
         #self.t_gnn=0
 
@@ -79,15 +79,13 @@ class Dataset_pr_gnn(Dataset_pr):
             target = pickle.load(f)        
         with open(self.args.input_path + self.args.graph_file, 'rb') as f:
             graph = pickle.load(f)
-        #with open(self.args.input_path + self.args.mask_target_file, 'rb') as f:
-        #    mask_target = pickle.load(f)
+        with open(self.args.input_path + self.args.mask_target_file, 'rb') as f:
+            mask_target = pickle.load(f)
         with open(self.args.input_path + self.args.subgraphs_file, 'rb') as f:
             subgraphs = pickle.load(f)
-        with open(self.args.input_path + self.args.cell_idxs_file, 'rb') as f:
-            cell_idxs = pickle.load(f)
         self.length = len(idx_to_key)
         self.low_res_abs = abs(graph.low_res)
-        return input, idx_to_key, target, graph, subgraphs, cell_idxs
+        return input, idx_to_key, target, graph, subgraphs, mask_target
 
     def __getitem__(self, idx):
         #t0 = time.time()
@@ -100,22 +98,22 @@ class Dataset_pr_gnn(Dataset_pr):
         
         #-- derive input
         input = torch.zeros((25, 5, 5, 6, 6)) # (time, var, lev, lat, lon)
-        input[:, :] = torch.tensor(self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4])
+        input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         #t1 = time.time()
         #self.t_input += (t1 - t0)
         #-- derive gnn data
-#        subgraph = self.subgraphs[space_idx].clone()#.cuda()
-        s = self.subgraphs[space_idx]
-        subgraph = Data(edge_index = torch.tensor(s['edge_index']), x = torch.tensor(s['x']), num_nodes = s['x'].shape[0])
+        subgraph = self.subgraphs[space_idx].clone()#.cuda()
+#        s = self.subgraphs[space_idx]
+#        subgraph = Data(edge_index = torch.tensor(s['edge_index']), x = torch.tensor(s['x']), num_nodes = s['x'].shape[0])
 #        subgraph = Data(edge_index = s['edge_index'], edge_attr = s['edge_attr'], num_nodes = s['num_nodes'], z = s['z'], low_res = s['low_res'], mask_1_cell = s['mask_1_cell'])
         #print(subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
         #train_mask = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
         #subgraph["train_mask"] = train_mask[subgraph.mask_1_cell]
-#        train_mask = self.mask_target[:,time_idx][subgraph.mask_1_cell]
-#        subgraph["train_mask"] = train_mask    
-#        y = self.target[subgraph.mask_1_cell, time_idx][train_mask] # shape = (n_nodes_subgraph,)
-        y = torch.tensor(self.target[self.cell_idxs == space_idx, time_idx]) # shape = (n_nodes_subgraph,)
-        subgraph["y"] = y#.cuda()
+        train_mask = self.mask_target[:,time_idx][subgraph.mask_1_cell]
+        subgraph["train_mask"] = train_mask
+        y = self.target[subgraph.mask_1_cell, time_idx][train_mask]             # shape = (n_nodes_subgraph,)
+#        y = torch.tensor(self.target[self.cell_idxs == space_idx, time_idx]) # shape = (n_nodes_subgraph,)
+        subgraph["y"] = y #.cuda()
         #self.t_gnn += (time.time() - t1)
         return input, subgraph
     
