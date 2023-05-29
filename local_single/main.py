@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import sys
 import time
@@ -8,6 +9,7 @@ from torch import nn
 import torchvision.ops.focal_loss
 
 import models
+import utils
 import dataset
 
 from utils import load_encoder_checkpoint, check_freezed_layers
@@ -77,19 +79,19 @@ if __name__ == '__main__':
         os.makedirs(args.output_path)
 
     if args.use_accelerate is True:
-        accelerator = Accelerator() #log_with="wandb")
+        accelerator = Accelerator(log_with="wandb")
     else:
         accelerator = None
 
-    # wand
-#    if args.mode == 'train':
-#        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
-#        os.environ['WANDB_USERNAME'] = 'valebl'
-#        os.environ['WANDB_MODE'] = 'offline'
+   # wand
+    if args.mode == 'train':
+        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+        os.environ['WANDB_USERNAME'] = 'valebl'
+        os.environ['WANDB_MODE'] = 'offline'
 
- #       accelerator.init_trackers(
- #           project_name=args.wandb_project_name
- #           )
+        accelerator.init_trackers(
+            project_name=args.wandb_project_name
+            )
 
     if args.model_type == 'cl' or args.model_type == 'reg':
         dataset_type = 'gnn'
