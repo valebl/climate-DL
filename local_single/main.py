@@ -22,13 +22,14 @@ parser.add_argument('--input_path', type=str, help='path to input directory')
 parser.add_argument('--output_path', type=str, help='path to output directory')
 
 #-- input files
-parser.add_argument('--input_file', type=str, default="input_standard.pkl")
+parser.add_argument('--input_file', type=str, default=None)
 parser.add_argument('--target_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
 parser.add_argument('--checkpoint_file', type=str, default=None)
 parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
-parser.add_argument('--subgraphs_file', type=str, default="subgraphs.pkl")
+parser.add_argument('--subgraphs_file', type=str, default=None)
+parser.add_argument('--cell_idxs_file', type=str, default=None)
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -76,19 +77,19 @@ if __name__ == '__main__':
         os.makedirs(args.output_path)
 
     if args.use_accelerate is True:
-        accelerator = Accelerator(log_with="wandb")
+        accelerator = Accelerator() #log_with="wandb")
     else:
         accelerator = None
 
     # wand
-    if args.mode == 'train':
-        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
-        os.environ['WANDB_USERNAME'] = 'valebl'
-        os.environ['WANDB_MODE'] = 'offline'
+#    if args.mode == 'train':
+#        os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
+#        os.environ['WANDB_USERNAME'] = 'valebl'
+#        os.environ['WANDB_MODE'] = 'offline'
 
-        accelerator.init_trackers(
-            project_name=args.wandb_project_name
-            )
+ #       accelerator.init_trackers(
+ #           project_name=args.wandb_project_name
+ #           )
 
     if args.model_type == 'cl' or args.model_type == 'reg':
         dataset_type = 'gnn'
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     Model = getattr(models, args.model_name)
     Dataset = getattr(dataset, 'Dataset_pr_'+dataset_type)
     custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
-   
+
     model = Model()
     epoch_start = 0
 
@@ -219,7 +220,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
 
     start = time.time()
-    
+
     if args.mode == 'train':
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
         trainer = Trainer()

@@ -234,7 +234,7 @@ class Classifier_old(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.z[:,:3]
+            features[:,:3] = data.x[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
@@ -242,9 +242,10 @@ class Classifier_old(nn.Module):
         
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)    # (batch_dim, 128)
         
-        train_mask = data_batch.train_mask
+        return y_pred.squeeze(), data_batch.y.squeeze()     
 
-        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
+#        train_mask = data_batch.train_mask
+#        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
 
 
 class Regressor_old(nn.Module):
