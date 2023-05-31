@@ -11,11 +11,11 @@ from torch_geometric.data import Data
 
 class Dataset_pr(Dataset):
 
-    def __init__(self, args, pad=2, lat_dim=16, lon_dim=31):
+    def __init__(self, args, lat_dim, lon_dim, pad=2):
         super().__init__()
         self.pad = pad
-        self.lat_low_res_dim = lat_dim # number of points in the GRIPHO rectangle (0.25 grid)
         self.lon_low_res_dim = lon_dim
+        self.lat_low_res_dim = lat_dim
         self.space_low_res_dim = self.lat_low_res_dim * self.lon_low_res_dim
         self.args = args
         self.length = None
@@ -67,8 +67,6 @@ class Dataset_pr_gnn(Dataset_pr):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input, self.idx_to_key, self.target, self.graph, self.subgraphs, self.mask_target = self._load_data_into_memory()
-        #self.t_input=0
-        #self.t_gnn=0
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
@@ -88,33 +86,20 @@ class Dataset_pr_gnn(Dataset_pr):
         return input, idx_to_key, target, graph, subgraphs, mask_target
 
     def __getitem__(self, idx):
-        #t0 = time.time()
         k = self.idx_to_key[idx]   
         time_idx = k // self.space_low_res_dim
         space_idx = k % self.space_low_res_dim
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
-        #print(self.space_low_res_dim, self.lon_low_res_dim, self.lat_low_res_dim, idx, k, time_idx, space_idx, lat_idx, lon_idx)
-        
         #-- derive input
-        input = torch.zeros((25, 5, 5, 6, 6)) # (time, var, lev, lat, lon)
+        input = torch.zeros((25, 5, 5, 6, 6))                               # (time, var, lev, lat, lon)
         input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
-        #t1 = time.time()
-        #self.t_input += (t1 - t0)
-        #-- derive gnn data
-        subgraph = self.subgraphs[space_idx].clone()#.cuda()
-#        s = self.subgraphs[space_idx]
-#        subgraph = Data(edge_index = torch.tensor(s['edge_index']), x = torch.tensor(s['x']), num_nodes = s['x'].shape[0])
-#        subgraph = Data(edge_index = s['edge_index'], edge_attr = s['edge_attr'], num_nodes = s['num_nodes'], z = s['z'], low_res = s['low_res'], mask_1_cell = s['mask_1_cell'])
-        #print(subgraph.mask_1_cell.device, self.mask_target[:,time_idx].device)
-        #train_mask = subgraph.mask_1_cell * self.mask_target[:,time_idx]#.cuda() # shape = (n_nodes,)
-        #subgraph["train_mask"] = train_mask[subgraph.mask_1_cell]
-        train_mask = self.mask_target[:,time_idx][subgraph.mask_1_cell]
+        #-- derive graphs and target
+        subgraph = self.subgraphs[space_idx].clone()
+        train_mask = self.mask_target[:,time_idx][subgraph.mask_1_cell]     # train_mask.shape = (self.graph.n_nodes, )
         subgraph["train_mask"] = train_mask
-        y = self.target[subgraph.mask_1_cell, time_idx][train_mask]             # shape = (n_nodes_subgraph,)
-#        y = torch.tensor(self.target[self.cell_idxs == space_idx, time_idx]) # shape = (n_nodes_subgraph,)
-        subgraph["y"] = y #.cuda()
-        #self.t_gnn += (time.time() - t1)
+        y = self.target[subgraph.mask_1_cell, time_idx][train_mask]         # y.shape = (subgraph.n_nodes,)
+        subgraph["y"] = y 
         return input, subgraph
     
 class Dataset_pr_test(Dataset_pr):
@@ -144,42 +129,14 @@ class Dataset_pr_test(Dataset_pr):
         lat_idx = space_idx // self.lon_low_res_dim
         lon_idx = space_idx % self.lon_low_res_dim
         #-- derive input
-        input = torch.zeros((25, 5, 5, 6, 6)) # (time, var, lev, lat, lon)
+        input = torch.zeros((25, 5, 5, 6, 6))                               # (time, var, lev, lat, lon)
         input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
-        ##-- derive gnn data
-        #print(idx, k, time_idx, space_idx, lat_idx, lon_idx)
+        #-- derive graphs and target
         subgraph = self.subgraphs[space_idx].clone()
-        #cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        #subgraph["idx_list"] = cell_idx_list
         subgraph["time_idx"] = time_idx - self.time_min
-        #subgraph["test_mask"] = subgraph.mask_1_cell[subgraph.mask_1_cell]
         y = self.test_graph.y[subgraph.mask_1_cell, time_idx - self.time_min]
         subgraph["y"] = y
         return input, subgraph
-
-class Dataset_pr_ft_gnn(Dataset_pr_gnn):
-
-    def __getitem__(self, idx):
-        k = self.idx_to_key[idx]   
-        time_idx = k // self.space_low_res_dim
-        space_idx = k % self.space_low_res_dim
-        lat_idx = space_idx // self.lon_low_res_dim
-        lon_idx = space_idx % self.lon_low_res_dim
-        #-- derive input
-        encoding = torch.zeros((9, 128))
-        cell_idx_list = torch.tensor([ii * self.lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
-        for i, s in enumerate(cell_idx_list):
-            encoding[i, :] = self.input[s, time_idx, :]
-        
-        #-- derive gnn data
-        mask_subgraph = self.mask_9_cells[space_idx] # shape = (n_nodes,)
-        subgraph = self.graph.subgraph(subset=mask_subgraph)
-        mask_y_nodes = self.mask_1_cell[space_idx] * self.mask_target[:,time_idx] # shape = (n_nodes,)
-        subgraph["train_mask"] = mask_y_nodes[mask_subgraph]
-        y = self.target[mask_subgraph, time_idx] # shape = (n_nodes_subgraph,)
-        subgraph["y"] = y
-        subgraph["idx_list"] = cell_idx_list
-        return encoding, subgraph
 
 
 def custom_collate_fn_ae(batch):
@@ -187,16 +144,8 @@ def custom_collate_fn_ae(batch):
     input = default_convert(input)
     return input
 
-def custom_collate_fn_e(batch):
-    input = torch.stack([item[0] for item in batch])
-    idxs = [item[1] for item in batch] 
-    input = default_convert(input)
-    idxs = default_convert(idxs)
-    idxs = torch.stack(idxs)
-    return input, idxs
-
 def custom_collate_fn_gnn(batch):
-    input = torch.stack([item[0] for item in batch]) # shape = (batch_size, 9, 25, 5, 5, 6, 6)
+    input = torch.stack([item[0] for item in batch])                        # shape = (batch_size, 25, 5, 5, 6, 6)
     data = [item[1] for item in batch]
     input = default_convert(input)
     return input, data

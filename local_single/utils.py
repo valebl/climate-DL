@@ -4,7 +4,9 @@ import pickle
 
 import torch
 
-#------Some useful utilities------
+#-----------------------------------------------------
+#----------------- GENERAL UTILITIES -----------------
+#-----------------------------------------------------
 
 class AverageMeter(object):
     '''
@@ -98,6 +100,10 @@ def check_freezed_layers(model, log_path, log_file, accelerator):
                 f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters") 
 
 
+#-----------------------------------------------------
+#------------------ TRAIN AND TEST -------------------
+#-----------------------------------------------------
+
 class Trainer(object):
 
     def _train_epoch_ae(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler):
@@ -113,7 +119,7 @@ class Trainer(object):
             loss_meter.update(val=loss.item(), n=X.shape[0])
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
-            #lr_scheduler.step() 
+            #   lr_scheduler.step() 
             if accelerator.is_main_process and step % 50000 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
@@ -148,9 +154,9 @@ class Trainer(object):
             performance_meter.update(val=performance, n=X.shape[0])
             acc_class1_meter.update(val=acc_class1, n=X.shape[0])
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
+            #   lr_scheduler.step()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
                 'accuracy avg': performance_meter.avg, 'accuracy class1 avg': acc_class1_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
-            #lr_scheduler.step()
             step += 1
             if accelerator.is_main_process:
                 if step % 5000 == 0:
@@ -160,7 +166,7 @@ class Trainer(object):
                         "epoch": epoch,
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
-            #print("OK")
+            #print("OK") 
             #sys.exit()
         end = time.time()
         accelerator.log({'loss epoch': loss_meter.avg, 'accuracy epoch': performance_meter.avg, 'accuracy class1 epoch': acc_class1_meter.avg})
@@ -173,7 +179,6 @@ class Trainer(object):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0 
-        #t0 = time.time()
         device = 'cuda' if accelerator is None else accelerator.device
         for X, data in dataloader:
             optimizer.zero_grad()
@@ -197,7 +202,6 @@ class Trainer(object):
                         "epoch": epoch,
                         }
                     torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}_tmp.pth")
-            #t0 = time.time()
             #print("OK")
             #sys.exit()
         end = time.time()
@@ -226,28 +230,6 @@ class Trainer(object):
                 torch.save(checkpoint_dict, args.output_path+f"checkpoint_{epoch}.pth")
 
 
-class Get_encoder(object):
-
-    def get_encoding(self, model, dataloader, accelerator, args, space_dim=495, time_dim=130727):
-        model.eval()
-        encodings_array = torch.zeros((space_dim+1, time_dim+1, 128), dtype=torch.float32)
-        step = 0
-        with torch.no_grad():
-            for X, idxs in dataloader: # idxs.shape = (batch_dim, 2)
-                encodings = model(X.cuda())
-                encodings_array[idxs[:,0], idxs[:,1], :] = encodings.cpu()
-                if step == 10:
-                    break
-                #for i, e in enumerate(encodings):
-                #    s = idxs[i,0].item(); t = idxs[i,1].item()
-                #    encodings_array[s,t,:] = e.cpu().numpy()
-                if step % 25000 == 0:
-                    with open(args.output_path+args.log_file, 'a') as f:
-                        f.write(f"\nStep {step} done.")
-                step += 1
-            with open(args.output_path+"encodings_array.pkl", 'wb') as f:
-                pickle.dump(encodings_array, f)
-
 class Tester(object):
 
     def test(self, model_cl, model_reg, dataloader, G_test, args, accelerator=None):
@@ -260,10 +242,9 @@ class Tester(object):
                 X = X.cuda()
                 model_cl(X, data, G_test, device)
                 model_reg(X, data, G_test, device)
-                
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
-                        f.write(f"\nStep {step} done.") # {G_test.pr_reg.isnan().sum() / (2334 * 9528)}, {G_test.pr_cl.isnan().sum() / (2334 * 9528)}")
+                        f.write(f"\nStep {step} done.")
                 step += 1 
         G_test["pr"] = G_test.pr_cl * G_test.pr_reg
         
