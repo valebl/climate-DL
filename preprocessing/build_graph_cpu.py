@@ -163,11 +163,11 @@ if __name__ == '__main__':
     mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
     mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
     
-#    with open(args.output_path + 'mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
-#        pickle.dump(mask_1_cell_subgraphs, f)
+    with open(args.output_path + 'mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(mask_1_cell_subgraphs, f)
     
-#    with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
-#        pickle.dump(mask_9_cells_subgraphs, f)
+    with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(mask_9_cells_subgraphs, f)
    
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
@@ -175,11 +175,11 @@ if __name__ == '__main__':
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train if s in valid_examples_space]
     idx_train_ae = np.array(idx_train_ae)
 
-#    with open(args.output_path + 'idx_test.pkl', 'wb') as f:
-#        pickle.dump(idx_test, f)
+    with open(args.output_path + 'idx_test.pkl', 'wb') as f:
+        pickle.dump(idx_test, f)
     
-#    with open(args.output_path + 'idx_train_ae.pkl', 'wb') as f:
-#        pickle.dump(idx_train_ae, f)
+    with open(args.output_path + 'idx_train_ae.pkl', 'wb') as f:
+        pickle.dump(idx_train_ae, f)
 
     with open(args.output_path + 'valid_examples_space.pkl', 'wb') as f:   # low res cells indexes valid as examples for the training
         pickle.dump(valid_examples_space, f)
@@ -198,8 +198,6 @@ if __name__ == '__main__':
     with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
         pickle.dump(cell_idx_array, f)
 
-    sys.exit()
-    
     threshold = 0.1 # mm
     pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
     pr_sel_train = pr_sel[:,:max(idx_time_train)+1]
