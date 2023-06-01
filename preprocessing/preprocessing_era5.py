@@ -10,13 +10,15 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 
 parser.add_argument('--input_path', type=str, help='path to input directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
 parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
-parser.add_argument('--input_files_suffix', type=str, help='suffix for the input files (convenction: {parameter}{suffix}.nc)', default='_sliced')
+parser.add_argument('--input_files_suffix', type=str, help='prefix for the input files (convenction: {prefix}{parameter}.nc)', default='sliced_')
 parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
 parser.add_argument('--output_file', type=str, help='path to output directory', default='input_ds_standard.pkl')
 parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
 parser.add_argument('--statistics_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/')
 parser.add_argument('--means_file', type=str, default='means.pkl')
 parser.add_argument('--stds_file', type=str, default='stds.pkl')
+parser.add_argument('--mean_std_over_variable', action='store_true')
+parser.add_argument('--mean_std_over_variable_and_level', dest='mean_and_std_over_variable', action='store_false')
 
 
 if __name__ == '__main__':
@@ -31,15 +33,17 @@ if __name__ == '__main__':
     params = ['q', 't', 'u', 'v', 'z']
     n_params = len(params)
  
-    ## create the input dataset from files
+    #-----------------------------------------------------
+    #-------------- INPUT TENSOR FROM FILES --------------
+    #-----------------------------------------------------
     
     with open(args.output_path + args.log_file, 'w') as f:
         f.write(f'\nStarting to create the input dataset from files.')
 
     for p_idx, p in enumerate(params):
         with open(args.output_path + args.log_file, 'a') as f:
-            f.write(f'\nPreprocessing {p}{args.input_files_suffix}.nc ...')
-        with xr.open_dataset(f'{args.input_path}/{p}{args.input_files_suffix}.nc') as f:
+            f.write(f'\nPreprocessing {args.input_files_prefix}{p}.nc ...')
+        with xr.open_dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as f:
             data = f[p].values
             if p_idx == 0: # first parameter being processed -> get dimensions and initialize the input dataset
                 lat_dim = len(f.latitude)
@@ -48,7 +52,9 @@ if __name__ == '__main__':
                 input_ds = np.zeros((time_dim, n_params, args.n_levels, lat_dim, lon_dim), dtype=np.float32) # variables, levels, time, lat, lon
         input_ds[:, p_idx,:,:,:] = data
 
-    ## post-processing of the input dataset
+    #-----------------------------------------------------
+    #-------------- POST-PROCESSING OF INPUT--------------
+    #-----------------------------------------------------
     
     # flip the dataset
     input_ds = np.flip(input_ds, 3) # the origin in the input files is in the top left corner, while we use the bottom left corner
@@ -59,51 +65,47 @@ if __name__ == '__main__':
     
     input_ds_standard = np.zeros((input_ds.shape), dtype=np.float32)
     
-    if not load_statistics:
-        means = np.zeros((5))
-        stds = np.zeros((5))
-        for var in range(5):
-            m = np.mean(input_ds[:,var,:,:,:])
-            s = np.std(input_ds[:,var,:,:,:])
-            input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-m)/s
-            means[var] = m
-            stds[var] = s
-        with open(args.output_path + "means.pkl", 'wb') as f:
-            pickle.dump(means, f)
-        with open(args.output_path + "stds.pkl", 'wb') as f:
-            pickle.dump(stds, f)
-    else:
+    if load_statistics:
         with open(args.statistics_path+args.means_file, 'rb') as f:
             means = pickle.load(f)
         with open(args.statistics_path+args.stds_file, 'rb') as f:
             stds = pickle.load(f)
-        for var in range(5):
-            input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-means[var])/stds[var]    
 
-    #if not load_statistics:
-    #    means = np.zeros((5,5))
-    #    stds = np.zeros((5,5))
-    #
-    #    for var in range(5):
-    #        for lev in range(5):
-    #            m = np.mean(input_ds[:,var,lev,:,:])
-    #            s = np.std(input_ds[:,var,lev,:,:])
-    #            input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
-    #            means[var, lev] = m
-    #            stds[var, lev] = s
-    #    with open(args.output_path + "means.pkl", 'wb') as f:
-    #        pickle.dump(means, f)
-    #    with open(args.output_path + "stds.pkl", 'wb') as f:
-    #        pickle.dump(stds, f)
-    #else:
-    #    with open(args.statistics_path+args.means_file, 'rb') as f:
-    #        means = pickle.load(f)
-    #    with open(args.statistics_path+args.stds_file, 'rb') as f:
-    #        stds = pickle.load(f)
-    #    for var in range(5):
-    #        for lev in range(5):
-    #            input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
+    if args.mean_std_over_variable:
+        if not load_statistics:
+            means = np.zeros((5))
+            stds = np.zeros((5))
+            for var in range(5):
+                m = np.mean(input_ds[:,var,:,:,:])
+                s = np.std(input_ds[:,var,:,:,:])
+                input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-m)/s
+                means[var] = m
+                stds[var] = s
+        else:
+            for var in range(5):
+                input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-means[var])/stds[var]    
+    else:
+        if not_load_statistics:
+            means = np.zeros((5,5))
+            stds = np.zeros((5,5))
+            for var in range(5):
+                for lev in range(5):
+                    m = np.mean(input_ds[:,var,lev,:,:])
+                    s = np.std(input_ds[:,var,lev,:,:])
+                    input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-m)/s
+                    means[var, lev] = m
+                    stds[var, lev] = s
+        else:
+            for var in range(5):
+                for lev in range(5):
+                    input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
 
+    if not load_statistics:
+        with open(args.output_path + "means.pkl", 'wb') as f:
+            pickle.dump(means, f)
+        with open(args.output_path + "stds.pkl", 'wb') as f:
+            pickle.dump(stds, f)
+    
     input_ds_standard = torch.tensor(input_ds_standard)
 
     # write the input datasets to files
