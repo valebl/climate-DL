@@ -41,6 +41,7 @@ parser.add_argument('--lon_dim', type=int, default=7)
 parser.add_argument('--lat_dim', type=int, default=7)
 parser.add_argument('--model_name_cl', type=str, default='Classifier_old_test')
 parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
+parser.add_argument('--idx_min', type=int, default=130728)
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -79,7 +80,7 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=130728, time_max=140255) #time_min=113951, time_max=140255)
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=args.idx_min, time_max=140255) #time_min=113951, time_max=140255)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
