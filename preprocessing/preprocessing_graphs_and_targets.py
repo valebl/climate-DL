@@ -304,33 +304,33 @@ if __name__ == '__main__':
     edge_attr[:,0] = edge_attr[:,0] / edge_attr[:,0].max() 
     edge_attr[:,1] = edge_attr[:,1] / edge_attr[:,1].max()
     
-    ## intervals to categorical values
-    lon_m1 = edge_attr[:,0]<-0.5
-    lon_0 = np.logical_and(edge_attr[:,0]>-0.5, edge_attr[:,0]<0.5)
-    lon_1 = edge_attr[:,0]>0.5
-    lat_m1 = edge_attr[:,1]<-0.5
-    lat_0 = np.logical_and(edge_attr[:,1]>-0.5, edge_attr[:,1]<0.5)
-    lat_1 = edge_attr[:,1]>0.5
-
-    bool_N = np.logical_and(lon_0, lat_m1)     # (0, -1)
-    bool_NE = np.logical_and(lon_m1, lat_m1)   # (-1,-1)
-    bool_E = np.logical_and(lon_m1, lat_0)      # (-1, 0)
-    bool_SE = np.logical_and(lon_m1, lat_1)    # (-1, 1)
-    bool_S = np.logical_and(lon_0, lat_1)      # (0, 1)
-    bool_SO = np.logical_and(lon_1, lat_1)     # (1, 1)
-    bool_O = np.logical_and(lon_1, lat_0)      # (1, 0)
-    bool_NO = np.logical_and(lon_1, lat_m1)    # (1, m)
-
-    edge_attr_cat = np.empty(edge_attr.shape[0], dtype=int)
-    
-    edge_attr_cat[bool_N] = 1
-    edge_attr_cat[bool_NE] = 2
-    edge_attr_cat[bool_E] = 3
-    edge_attr_cat[bool_SE] = 4
-    edge_attr_cat[bool_S] = 5
-    edge_attr_cat[bool_SO] = 6
-    edge_attr_cat[bool_O] = 7
-    edge_attr_cat[bool_NO] = 8
+#    ## intervals to categorical values
+#    lon_m1 = edge_attr[:,0]<-0.5
+#    lon_0 = np.logical_and(edge_attr[:,0]>-0.5, edge_attr[:,0]<0.5)
+#    lon_1 = edge_attr[:,0]>0.5
+#    lat_m1 = edge_attr[:,1]<-0.5
+#    lat_0 = np.logical_and(edge_attr[:,1]>-0.5, edge_attr[:,1]<0.5)
+#    lat_1 = edge_attr[:,1]>0.5
+#    
+#    bool_N = np.logical_and(lon_0, lat_m1)     # (0, -1)
+#    bool_NE = np.logical_and(lon_m1, lat_m1)   # (-1,-1)
+#    bool_E = np.logical_and(lon_m1, lat_0)      # (-1, 0)
+#    bool_SE = np.logical_and(lon_m1, lat_1)    # (-1, 1)
+#    bool_S = np.logical_and(lon_0, lat_1)      # (0, 1)
+#    bool_SO = np.logical_and(lon_1, lat_1)     # (1, 1)
+#    bool_O = np.logical_and(lon_1, lat_0)      # (1, 0)
+#    bool_NO = np.logical_and(lon_1, lat_m1)    # (1, m)
+#
+#    edge_attr_cat = np.empty(edge_attr.shape[0], dtype=int)
+#    
+#    edge_attr_cat[bool_N] = 0
+#    edge_attr_cat[bool_NE] = 1
+#    edge_attr_cat[bool_E] = 2
+#    edge_attr_cat[bool_SE] = 3
+#    edge_attr_cat[bool_S] = 4
+#    edge_attr_cat[bool_SO] = 5
+#    edge_attr_cat[bool_O] = 6
+#    edge_attr_cat[bool_NO] = 7
     
     #-----------------------------------------------------
     #---------------------- GRAPHS -----------------------
@@ -339,8 +339,8 @@ if __name__ == '__main__':
     ## create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
-            edge_attr=torch.tensor(edge_attr_cat), z=torch.tensor(lon_lat_z_s))
-    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
+            edge_attr=torch.tensor(edge_attr), z=torch.tensor(lon_lat_z_s))
+    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
 
     ## write some files

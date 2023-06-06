@@ -18,6 +18,7 @@ parser.add_argument('--graph_file', type=str) #, default="G_north_italy_train_al
 parser.add_argument('--subgraphs_file', type=str) #, default="subgraphs_s.pkl")
 parser.add_argument('--space_idxs_file', type=str) #, default="valid_examples_space.pkl")
 parser.add_argument('--mask_1_cell_file', type=str) #, default="mask_1_cell_subgraphs.pkl")
+parser.add_argument('--mask_9_cells_file', type=str) 
 
 # other
 parser.add_argument('--lat_dim', type=int) #, default=16)
@@ -38,6 +39,9 @@ if __name__ == "__main__":
     with open(args.input_path + args.mask_1_cell_file, 'rb') as f:
         mask_1_cell = pickle.load(f)
     
+    with open(args.input_path + args.mask_9_cells_file, 'rb') as f:
+        mask_9_cells = pickle.load(f)
+    
     subgraphs = [[] for i in range(max(space_idxs)+1)]
 
     for space_idx in space_idxs:
@@ -48,14 +52,14 @@ if __name__ == "__main__":
         cell_idx_list = torch.tensor([ii * args.lon_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         #idx_list_mapped = torch.sum(torch.stack([(subgraph.low_res==idx)* j for j, idx in enumerate(cell_idx_list)]), dim=0)
         subgraph["mask_1_cell"] = mask_1_cell[space_idx].cpu()  # (n_nodes)
-        #subgraph["mask_9_cells"] = mask_subgraph.cpu()         # (n_nodes)
+        subgraph["mask_9_cells"] = mask_9_cells[space_idx].cpu()         # (n_nodes)
         #subgraph["idx_list"] = cell_idx_list
         #subgraph["idx_list_mapped"] = idx_list_mapped
         #subgraphs[space_idx] = subgraph
-        s = dict()
-        for a in subgraph:
-            s[a[0]] = a[1]
-        subgraphs[space_idx] = s
+        #s = dict()
+        #for a in subgraph:
+        #    s[a[0]] = a[1]
+        subgraphs[space_idx] = subgraph
 
         if space_idx % 10 == 0:
             print(f"Done until {space_idx}.")
