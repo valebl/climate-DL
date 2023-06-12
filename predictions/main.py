@@ -11,6 +11,7 @@ sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_single")
 import models
 import dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
+from utils_predictions import create_zones, plot_maps
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -34,6 +35,7 @@ parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
 #-- boolean
 parser.add_argument('--use_accelerate',  action='store_true')
 parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_false')
+parser.add_argument('--make_plots',  action='store_true', default=False)
 
 #-- other
 parser.add_argument('--test_year', type=int, default=2016)
@@ -129,6 +131,39 @@ if __name__ == '__main__':
 
     with open(args.output_path + args.output_file, 'wb') as f:
         pickle.dump(G_test, f)
+
+    ## PLOTS
+    if args.make_plots:        
+        with open(args.output_path + args.log_file, 'a') as f:
+            f.write(f"\Making some plots.")
+        with open("/m100_work/ICT23_ESP_C/vblasone/climate-DL/data_fvg_preprocessed/valid_examples_space.pkl", 'rb') as f:
+            valid_examples_space = pickle.load(f)
+        zones = create_zones()
+        mask = np.logical_and(np.array([~torch.isnan(G_test.y[i,:]).all().numpy() for i in range(G_test.pr.shape[0])]), np.in1d(G.low_res, valid_examples_space))
+        # Classifier
+        y_cl = torch.where(G_test.y[mask,:] >= 0.1, 1.0, 0.0)
+        corrects = (G.pr_cl.numpy()[mask,:].flatten() == y_cl.numpy().flatten())
+        acc = corrects.sum() / len(y_cl.flatten()) * 100
+        acc_0 = corrects[y_cl.flatten()==0].sum() / len(y_cl.flatten()[y_cl.flatten()==0]) * 100
+        acc_1 = corrects[y_cl.flatten()==1].sum() / len(y_cl.flatten()[y_cl.flatten()==1]) * 100            
+        with open(args.output_path + args.log_file, 'a') as f:
+            f.write(f"\nClassifier\nAccuracy: {acc:.2f}\nAccuracy on class 0: {acc_0:.2f}\nAccuracy on class 1: {acc_1:.2f}")
+        plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_cl.numpy(), pr_min=0.1, pr_max=2000, aggr=np.sum,
+            title="Classifier - Number of hours with pr>=0.1mm for the year {args.test_year}", idx_start=0, idx_end=-1, legend_title="hours",
+            save_path=args.output_path, save_file_name=f"maps_cl_{args.test_year}.jpg")
+        # Regressor
+        pr_mask = G_test.y.numpy()[mask,:] >= 0.1
+        plot_maps(G_test.pos[mask,:], G.pr_reg.numpy()[mask,:] * pr_mask, G.y.numpy()[mask,:] * pr_mask, pr_min=0.1, pr_max=2500, aggr=np.sum,
+            title='Regressor - Cumulative precipitation when pr>=0.1 in observations for the year {args.test_year}', idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_reg_{args.test_year}.jpg")
+        # Combines results
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.1, pr_max=2500, aggr=np.sum,
+            title='Cumulative precipitation for the year 2016', idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_cumulative_{args.test_year}.jpg")
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.0, pr_max=0.25, aggr=np.mean,
+            title='Mean precipitation for the year 2016', idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_mean_{args.test_year}.jpg"))
+
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f"\nDone.")
