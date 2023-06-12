@@ -4,6 +4,7 @@ import torch
 import argparse
 import time
 import os
+import matplotlib.pyplot as plt
 import sys
 sys.path.append("/m100_work/ICT23_ESP_C/vblasone/climate-DL/local_single")
 #sys.path.append("/home/vblasone/climate-DL/local_multiple")
@@ -45,6 +46,7 @@ parser.add_argument('--lat_dim', type=int, default=7)
 parser.add_argument('--model_name_cl', type=str, default='Classifier_old_test')
 parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
 parser.add_argument('--idx_min', type=int, default=130728)
+parser.add_argument('--img_extension', type=str, default='pdf')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -152,20 +154,35 @@ if __name__ == '__main__':
         with open(args.output_path + args.log_file, 'a') as f:
             f.write(f"\nClassifier\nAccuracy: {acc:.2f}\nAccuracy on class 0: {acc_0:.2f}\nAccuracy on class 1: {acc_1:.2f}")
         plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_cl.numpy(), pr_min=0.1, pr_max=2000, aggr=np.sum,
-            title="Classifier - Number of hours with pr>=0.1mm for the year {args.test_year}", idx_start=0, idx_end=-1, legend_title="hours",
-            save_path=args.output_path, save_file_name=f"maps_cl_{args.test_year}.png", zones=zones)
+            title=f"Classifier - Number of hours with pr>=0.1mm for the year {args.test_year}", idx_start=0, idx_end=-1, legend_title="hours",
+            save_path=args.output_path, save_file_name=f"maps_cl_{args.test_year}.{args.img_extension}", zones=zones)
         # Regressor
         pr_mask = G_test.y.numpy()[mask,:] >= 0.1
         plot_maps(G_test.pos[mask,:], G_test.pr_reg.numpy()[mask,:] * pr_mask, G_test.y.numpy()[mask,:] * pr_mask, pr_min=0.1, pr_max=2500, aggr=np.sum,
-            title='Regressor - Cumulative precipitation when pr>=0.1 in observations for the year {args.test_year}', idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_reg_{args.test_year}.png", zones=zones)
+            title=f"Regressor - Cumulative precipitation when pr>=0.1 in observations for the year {args.test_year}", idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_reg_{args.test_year}.{args.img_extension}", zones=zones)
         # Combines results
         plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.1, pr_max=2500, aggr=np.sum,
-            title='Cumulative precipitation for the year 2016', idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_cumulative_{args.test_year}.png", zones=zones)
+            title=f"Cumulative precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_cumulative_{args.test_year}.{args.img_extension}", zones=zones)
         plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.0, pr_max=0.25, aggr=np.mean,
-            title='Mean precipitation for the year 2016', idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_mean_{args.test_year}.png", zones=zones)
+            title=f"Mean precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_mean_{args.test_year}.{args.img_extension}", zones=zones)
+        # Histogram
+        y = G_test.y.numpy()[mask,:].flatten()
+        pr = G_test.pr.numpy()[mask,:].flatten()
+        pr_reg = G_test.pr_reg[mask,:].numpy().flatten()
+        binwidth = 1
+        fig, ax = plt.subplots(figsize=(16,8))
+        _ = plt.hist(y, bins=range(int(min(y)), int(max(y)+binwidth), binwidth), facecolor='blue', alpha=0.2, density=True, label='observations', edgecolor='k') 
+        _ = plt.hist(pr, bins=range(int(pr.min()), int(pr.max()+binwidth), binwidth), facecolor='orange', alpha=0.2, density=True, label='predictions', edgecolor='k')  # arguments are passed to np.histogram
+        # _ = plt.hist(pr_reg, bins=range(int(pr_reg.min()), int(pr_reg.max()+binwidth), binwidth), facecolor='green', alpha=0.2, density=True, label='regression', edgecolor='k') 
+        plt.title('Histogram', fontsize=18)
+        ax.set_yscale('log')
+        ax.set_xlabel('precipitation [mm]')
+        ax.set_ylabel('count (normalised)')
+        plt.legend()
+        plt.savefig(f'{args.output_path}histogram.{args.img_extension}', dpi=400, bbox_inches='tight', pad_inches=0.0) 
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f"\n\nDone.")

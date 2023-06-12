@@ -76,4 +76,4 @@ def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name
     cbar.ax.set_title(legend_title, rotation=0, fontsize=18, pad=20)
     _ = fig.suptitle(title, fontsize=22, x=0.45, y=1)
 
-    plt.savefig(f'{save_path}{save_file_name}', dpi=800, bbox_inches='tight', pad_inches=0.0)
+    plt.savefig(f'{save_path}{save_file_name}', dpi=400, bbox_inches='tight', pad_inches=0.0)
