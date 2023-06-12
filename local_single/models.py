@@ -257,11 +257,11 @@ class Classifier_old(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.z[:,:3]
+            features[:,:3] = data.x[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index) 
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
@@ -321,11 +321,11 @@ class Regressor_old(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.z[:,:3]
+            features[:,:3] = data.x[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index)
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()
@@ -390,11 +390,11 @@ class Classifier_z_only(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index) 
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
@@ -455,11 +455,11 @@ class Regressor_z_only(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()
@@ -526,11 +526,11 @@ class Classifier_edges(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float()) 
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
@@ -592,11 +592,11 @@ class Regressor_edges(nn.Module):
         for i, data in enumerate(data_batch):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()
@@ -679,11 +679,11 @@ class Classifier_old_test(Classifier_old):
 
         for i, data in enumerate(data_list):
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.z[:,:3]
+            features[:,:3] = data.x[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index)
         
         data_list = data_batch.to_data_list()       
@@ -709,11 +709,11 @@ class Regressor_old_test(Regressor_old):
 
         for i, data in enumerate(data_list):
             features = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).to(device)
-            features[:,:3] = data.z[:,:3]
+            features[:,:3] = data.x[:,:3]
             features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
         
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index)
         data_batch.x = torch.expm1(data_batch.x)
 
@@ -743,11 +743,11 @@ class Classifier_z_only_test(Classifier_z_only):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index)
         
         data_list = data_batch.to_data_list()       
@@ -774,11 +774,11 @@ class Regressor_z_only_test(Regressor_z_only):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.z[:,:self.node_dim]
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index)
         data_batch.x = torch.expm1(data_batch.x)
 
@@ -809,12 +809,12 @@ class Classifier_edges_test(Classifier_edges):
 
         for i, data in enumerate(data_list):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, self.edge_attr_dim + encoding.shape[1])).to(device)
-            features[:,:self.edge_attr_dim] = data.z[:,:self.edge_attr_dim]
-            features[:,self.edge_attr_dim:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         
         data_list = data_batch.to_data_list()       
@@ -840,12 +840,12 @@ class Regressor_edges_test(Regressor_edges):
 
         for i, data in enumerate(data_list):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, self.edge_attr_dim + encoding.shape[1])).to(device)
-            features[:,:self.edge_attr_dim] = data.z[:,:self.edge_attr_dim]
-            features[:,self.edge_attr_dim:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         data_batch.x = torch.expm1(data_batch.x)
 

@@ -220,7 +220,7 @@ if __name__ == '__main__':
     if args.mode == 'train':
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
         trainer = Trainer()
-        trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args)
+        trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=epoch_start)
     #elif args.mode == 'get_encoding':
     #    encoder = Get_encoder()
     #    encoder.get_encoding(model, dataloader, accelerator, args)
