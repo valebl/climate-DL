@@ -132,7 +132,10 @@ if __name__ == '__main__':
     with open(args.output_path + args.output_file, 'wb') as f:
         pickle.dump(G_test, f)
 
-    ## PLOTS
+#-----------------------------------------------------
+#----------------------- PLOTS -----------------------
+#-----------------------------------------------------
+
     if args.make_plots:        
         with open(args.output_path + args.log_file, 'a') as f:
             f.write(f"\n\nMaking some plots.")
