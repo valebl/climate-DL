@@ -10,20 +10,19 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 
 parser.add_argument('--input_path', type=str, help='path to input directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
 parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
-parser.add_argument('--input_files_suffix', type=str, help='prefix for the input files (convenction: {prefix}{parameter}.nc)', default='sliced_')
+parser.add_argument('--input_files_prefix', type=str, help='prefix for the input files (convenction: {prefix}{parameter}.nc)', default='sliced_')
 parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
 parser.add_argument('--output_file', type=str, help='path to output directory', default='input_ds_standard.pkl')
 parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
-parser.add_argument('--statistics_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/')
+parser.add_argument('--stats_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/')
 parser.add_argument('--means_file', type=str, default='means.pkl')
 parser.add_argument('--stds_file', type=str, default='stds.pkl')
 parser.add_argument('--mean_std_over_variable', action='store_true')
-parser.add_argument('--mean_std_over_variable_and_level', dest='mean_and_std_over_variable', action='store_false')
+parser.add_argument('--mean_std_over_variable_and_level', dest='mean_std_over_variable', action='store_false')
+parser.add_argument('--load_stats', action='store_true',help='load means and stds from files')
 
 
 if __name__ == '__main__':
-
-    load_statistics = False
 
     args = parser.parse_args()
 
@@ -65,14 +64,14 @@ if __name__ == '__main__':
     
     input_ds_standard = np.zeros((input_ds.shape), dtype=np.float32)
     
-    if load_statistics:
-        with open(args.statistics_path+args.means_file, 'rb') as f:
+    if args.load_stats:
+        with open(args.stats_path+args.means_file, 'rb') as f:
             means = pickle.load(f)
-        with open(args.statistics_path+args.stds_file, 'rb') as f:
+        with open(args.stats_path+args.stds_file, 'rb') as f:
             stds = pickle.load(f)
 
-    if args.mean_std_over_variable:
-        if not load_statistics:
+    if not args.mean_std_over_variable:
+        if not args.load_stats:
             means = np.zeros((5))
             stds = np.zeros((5))
             for var in range(5):
@@ -85,7 +84,7 @@ if __name__ == '__main__':
             for var in range(5):
                 input_ds_standard[:,var,:,:,:] = (input_ds[:,var,:,:,:]-means[var])/stds[var]    
     else:
-        if not_load_statistics:
+        if not args.load_stats:
             means = np.zeros((5,5))
             stds = np.zeros((5,5))
             for var in range(5):
@@ -100,7 +99,7 @@ if __name__ == '__main__':
                 for lev in range(5):
                     input_ds_standard[:,var,lev,:,:] = (input_ds[:,var,lev,:,:]-means[var, lev])/stds[var, lev]
 
-    if not load_statistics:
+    if not args.load_stats:
         with open(args.output_path + "means.pkl", 'wb') as f:
             pickle.dump(means, f)
         with open(args.output_path + "stds.pkl", 'wb') as f:

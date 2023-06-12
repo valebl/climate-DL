@@ -16,7 +16,7 @@ parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/v
 parser.add_argument('--log_file', type=str, default='log_ae.txt')
 parser.add_argument('--target_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
 parser.add_argument('--topo_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
-parser.add_argument('--input_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/SLICED/q_sliced.nc')
+#parser.add_argument('--input_path_file', type=str, default='/m100_work/ICT23_ESP_C/vblasone/SLICED/q_sliced.nc')
 
 #-- lat lon grid values
 parser.add_argument('--lon_min', type=float, default=6.50)
@@ -239,7 +239,7 @@ if __name__ == '__main__':
     with open(args.output_path + 'graph_cells_space.pkl', 'wb') as f:      # all low res cells that are used (examples + surroundings)
         pickle.dump(graph_cells_space, f)
         
-    with open('cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
+    with open(args.output_path + 'cell_idx_array.pkl', 'wb') as f:         # array that assigns to each high res node the corresponding low res cell index
         pickle.dump(cell_idx_array, f)
 
     #-------------------------------------------------
@@ -339,8 +339,8 @@ if __name__ == '__main__':
     ## create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
-            edge_attr=torch.tensor(edge_attr), z=torch.tensor(lon_lat_z_s))
-    G_train = Data(num_nodes=z_sel_s.shape[0], z=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
+            edge_attr=torch.tensor(edge_attr), x=torch.tensor(lon_lat_z_s))
+    G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr),
             low_res=torch.tensor(abs(cell_idx_array)).int())
 
     ## write some files

@@ -26,6 +26,7 @@ parser.add_argument('--graph_file_test', type=str)
 parser.add_argument('--subgraphs', type=str) 
 parser.add_argument('--checkpoint_cl', type=str)
 parser.add_argument('--checkpoint_reg', type=str)
+parser.add_argument('--output_file', type=str, default="G_predictions_2016.pkl")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -126,7 +127,7 @@ if __name__ == '__main__':
         f.write(f"\nDone. Testing concluded in {end-start} seconds.")
         f.write("\nWrite the files.")
 
-    with open(args.output_path + "G_predictions_2016.pkl", 'wb') as f:
+    with open(args.output_path + args.output_file, 'wb') as f:
         pickle.dump(G_test, f)
 
     with open(args.output_path + args.log_file, 'a') as f:
