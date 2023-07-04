@@ -172,8 +172,8 @@ if __name__ == '__main__':
     #----------- CUT LON, LAT, PR, Z TO WINDOW -----------
     #-----------------------------------------------------
 
-    gripho = xr.open_dataset(args.target_path_file)
-    topo = xr.open_dataset(args.topo_path_file)
+    gripho = xr.open_dataset(args.input_path + args.target_file)
+    topo = xr.open_dataset(args.input_path + args.topo_file)
 
     lon = gripho.lon.to_numpy()
     lat = gripho.lat.to_numpy()
@@ -479,7 +479,7 @@ if __name__ == '__main__':
 
         x_size = lon_input_points_dim
         y_size = lat_input_points_dim
-        font_size = 22 /
+        font_size = int(18 / 7 * x_size)
 
         fig, ax = plt.subplots(figsize=(x_size, y_size))
 
