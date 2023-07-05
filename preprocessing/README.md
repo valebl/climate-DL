@@ -38,4 +38,3 @@ The preprocessing consists in three different phases as listed below:
 Parameters lon_min, lon_max, lat_min, lat_max delineate the area of interest for the prediction and should be set
 manually both in Phase 1 and in Phase 2.
 
-- 
