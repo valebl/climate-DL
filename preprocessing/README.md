@@ -31,11 +31,11 @@ while Phase 3 is completely independent on Phase 1.
 	necessary for training and testing wich do not depend on the input. A more detailed description of
 	the files is contined in the README in the folder `data_fvg_preprocessed`
 	
-	Phase 3 is implemented in the Python script `preprocessing_graphs_and_targets.py` and can be run using
+	Phase 2 is implemented in the Python script `preprocessing_graphs_and_targets.py` and can be run using
 	the file `run_preprocessing_graphs_and_targets.sh`. Both parameters of the preprocessing and parameters
 	of the run should be set in the .sh file.
 
 
 Parameters lon_min, lon_max, lat_min, lat_max delineate the area of interest for the prediction and should be set
-manually both in Phase 1 and in Phase 2.
+manually both in Phase 1.a and in Phase 2.
 
