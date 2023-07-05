@@ -20,5 +20,5 @@ module load profile/advanced netcdf/4.7.3--spectrum_mpi--10.3.1--binary eccodes/
 
 cd /m100_work/ICT23_ESP_C/vblasone/climate-DL/preprocessing/
 
-python3 preprocessing_era5.py
+python3 preprocessing_era5.py --input_path='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/' --output_path='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/' --input_files_prefix="sliced_" --stats_path='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/' --means_file='means.pkl' --stds_file='stds.pkl' --load_stats
 
