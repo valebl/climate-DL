@@ -7,8 +7,8 @@
 ##---------------------------------#
 
 
-input_path='/m100_work/ICT23_ESP_C/vblasone/ERA5/'
-output_path='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/prova/'
+input_path='/m100_work/ICT23_ESP_C/SHARED/ERA5/'
+output_path='/m100_work/ICT23_ESP_C/SHARED/preprocessed/fvg/'
 prefix='sliced_'
 
 ## fvg
