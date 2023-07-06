@@ -61,7 +61,7 @@ echo "Done"
 cd ${output_path}
 
 ## merge all the sliced files into a single file for all the time span considered
-for v in 'q' ; do #'t' 'u' 'v' 'z' ; do
+for v in 'q' 't' 'u' 'v' 'z' ; do
     cdo -O -f nc4 -z zip -L -b F32 mergetime "${prefix}${v}_2001.nc" "${prefix}${v}_2002.nc" "${prefix}${v}_2003.nc" "${prefix}${v}_2004.nc" "${prefix}${v}_2005.nc" "${prefix}${v}_2006.nc" "${prefix}${v}_2007.nc" "${prefix}${v}_2008.nc" "${prefix}${v}_2009.nc" "${prefix}${v}_2010.nc" "${prefix}${v}_2011.nc" "${prefix}${v}_2012.nc" "${prefix}${v}_2013.nc" "${prefix}${v}_2014.nc" "${prefix}${v}_2015.nc" "${prefix}${v}_2016.nc" "${prefix}${v}.nc"
 done
 
