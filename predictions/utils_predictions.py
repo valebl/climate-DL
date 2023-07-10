@@ -42,10 +42,12 @@ def draw_rectangle(x_min, x_max, y_min, y_max, color, ax, fill=False, fill_color
             fill_color = color
         ax.fill(x_grid, y_grid, color=fill_color, alpha=alpha)
 
-def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name, aggr=None, title="", cmap='turbo', idx_start=1+31*24, idx_end=-1, legend_title="pr"):
+def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name, 
+        x_size, y_size, font_size, aggr=None, title="", 
+        cmap='turbo', idx_start=1+31*24, idx_end=-1, legend_title="pr"):
     
-    plt.rcParams.update({'font.size': 16})
-    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(20,6))
+    plt.rcParams.update({'font.size': int(16 // 7 * y_size)})
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(x_size*2,y_size))
 
     lon = pos[:,0]
     lat = pos[:,1]
@@ -73,7 +75,7 @@ def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name
     ax[1].set_title("GRIPHO")
 
     cbar = fig.colorbar(im, ax=ax, aspect=25, pad=0.025)
-    cbar.ax.set_title(legend_title, rotation=0, fontsize=18, pad=20)
-    _ = fig.suptitle(title, fontsize=22, x=0.45, y=1)
+    cbar.ax.set_title(legend_title, rotation=0, fontsize=int(16 // 7 * y_size), pad=20)
+    _ = fig.suptitle(title, fontsize=font_size, x=0.45, y=1)
 
     plt.savefig(f'{save_path}{save_file_name}', dpi=400, bbox_inches='tight', pad_inches=0.0)
