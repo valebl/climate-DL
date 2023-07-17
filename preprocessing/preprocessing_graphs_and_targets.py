@@ -479,7 +479,9 @@ if __name__ == '__main__':
 
         x_size = lon_input_points_dim
         y_size = lat_input_points_dim
-        font_size = int(18 / 7 * x_size)
+        font_size = int(18 // 7 * x_size)
+
+        plt.rcParams.update({'font.size': int(16 // 7 * y_size)})
 
         fig, ax = plt.subplots(figsize=(x_size, y_size))
 
@@ -511,14 +513,14 @@ if __name__ == '__main__':
         for i, lat_i in enumerate(lat_low_res_array):
             for j, lon_j in enumerate(lon_low_res_array):
                 k = i * lon_low_res_dim + j
-                _ = ax.text(lon_j+0.1, lat_i+0.1, k, fontsize=22)
+                _ = ax.text(lon_j+0.1, lat_i+0.1, k, fontsize=font_size)
                                                                                                         
         plot_italy(zones, color='black', ax=ax, alpha_fill=0, linewidth=2)
         plt.xlim([lon_input_points_array.min() - 0.25, lon_input_points_array.max() + 0.25])
         plt.ylim([lat_input_points_array.min() - 0.25, lat_input_points_array.max() + 0.25])
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(args.output_path + f'graph.pdf', dpi=400, bbox_inches='tight', pad_inches=0.0)
+        plt.savefig(args.output_path + f'graph.png', dpi=400, bbox_inches='tight', pad_inches=0.0)
 
     write_log("\nDone!", args)
 
