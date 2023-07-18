@@ -112,6 +112,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
+    write_log("\nStart!", args, 'w')
+    
     #-----------------------------------------------------
     #----------------- PRELIMINARY STUFF -----------------
     #-----------------------------------------------------
@@ -140,7 +142,6 @@ if __name__ == '__main__':
     lat_input_points_dim = lat_input_points_array.shape[0]
     space_input_points_dim = lon_input_points_dim * lat_input_points_dim
 
-    write_log("\nStart!", args, 'w')
     write_log(f"\nThe considered low-res lon-lat windows is [{lon_low_res_array.min()}, {lon_low_res_array.max()+args.interval}] x [{lat_low_res_array.min()}, {lat_low_res_array.max()+args.interval}]. " + 
               f"\nThe number of points is (lon x lat) {lon_low_res_dim} x {lat_low_res_dim}.", args)
     write_log(f"\nThe considered high-res lon-lat windows is [{lon_high_res_array.min()}, {lon_high_res_array.max()+args.interval}] x [{lat_high_res_array.min()}, {lat_high_res_array.max()+args.interval}]. " + 
