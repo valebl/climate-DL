@@ -32,6 +32,7 @@ parser.add_argument('--make_plots', action='store_true', default=False)
 
 #-- other
 parser.add_argument('--suffix', type=str, default='')
+parser.add_argument('--use_precomputed_stats', action='store_true', default=True)
 parser.add_argument('--precomputed_stats_file', type=str, default='z_stats_italy.pkl')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
