@@ -33,7 +33,7 @@ parser.add_argument('--make_plots', action='store_true', default=False)
 #-- other
 parser.add_argument('--suffix', type=str, default='')
 parser.add_argument('--use_precomputed_stats', action='store_true', default=True)
-parser.add_argument('--precomputed_stats_file', type=str, default='z_stats_italy.pkl')
+parser.add_argument('--precomputed_stats_file', type=str, default='TOPO/z_stats_italy.pkl')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     '''
@@ -301,7 +301,7 @@ if __name__ == '__main__':
     #-------------------------------------------------
     
     if args.use_precomputed_stats:
-        with open(args.output_path + args.precomputed_stats_file, 'rb') as f:
+        with open(args.input_path + args.precomputed_stats_file, 'rb') as f:
             precomputed_stats = pickle.load(f)
         mean_z = precomputed_stats[0]
         std_z = precomputed_stats[1]
