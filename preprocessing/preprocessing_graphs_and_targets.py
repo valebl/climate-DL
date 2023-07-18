@@ -32,6 +32,7 @@ parser.add_argument('--make_plots', action='store_true', default=False)
 
 #-- other
 parser.add_argument('--suffix', type=str, default='')
+parser.add_argument('--precomputed_stats_file', type=str, default='z_stats_italy.pkl')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     '''
@@ -297,26 +298,18 @@ if __name__ == '__main__':
     #----------- STANDARDISE LON LAT AND Z -----------
     #-------------------------------------------------
     
-    use_precomputed_means_stds = True
-
-    if use_precomputed_means_stds:
-        write_log(f"\nUsing statistics over italy for lat, lon and z.", args)
-        with open("lat_lon_z_best.pkl", 'rb') as f:
-            lat_lon_z_best = pickle.load(f)
-        z_sel_s = (z_sel - np.mean(lat_lon_z_best[:,2])) / np.std(lat_lon_z_best[:,2])
-        lon_sel_s = (lon_sel - np.mean(lat_lon_z_best[:,1])) / np.std(lat_lon_z_best[:,1])
-        lat_sel_s = (lat_sel - np.mean(lat_lon_z_best[:,0])) / np.std(lat_lon_z_best[:,0])
+    if args.use_precomputed_stats:
+        with open(args.output_path + args.precomputed_stats_file, 'rb') as f:
+            precomputed_stats = pickle.load(f)
+        mean_z = precomputed_stats[0]
+        std_z = precomputed_stats[1]
+        mode = "precomputed"
     else:
-        write_log(f"\nUsing local statistics for lat, lon and z.", args)
-        z_sel_s = (z_sel - z_sel.mean()) / z_sel.std()
-        lon_sel_s = (lon_sel - lon_sel.mean()) / lon_sel.std()
-        lat_sel_s = (lat_sel - lat_sel.mean()) / lat_sel.std()
-    
-    lon_lat_z_s = np.empty((z_sel_s.shape[0], 3))
-
-    lon_lat_z_s[:,0] = lon_sel_s
-    lon_lat_z_s[:,1] = lat_sel_s
-    lon_lat_z_s[:,2] = z_sel_s
+        mean_z = z_sel.mean()
+        std_z = z_sel.std()
+        mode = "local"
+    write_log(f"\nUsing {mode} statistics for z: mean={mean_z}, std={std_z}", args)
+    z_sel_s = (z_sel - mean_z) / std_z
 
     pos = np.column_stack((lon_sel,lat_sel))
 
@@ -378,8 +371,8 @@ if __name__ == '__main__':
     ## create the graph objects
     G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
-            edge_attr=torch.tensor(edge_attr_cat), x=torch.tensor(lon_lat_z_s))
-    G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(lon_lat_z_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
+            edge_attr=torch.tensor(edge_attr_cat), x=torch.tensor(z_sel_s))
+    G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(z_sel_s), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
             low_res=torch.tensor(abs(cell_idx_array)).int())
 
     ## write some files
