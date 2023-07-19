@@ -66,8 +66,13 @@ parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
 parser.add_argument('--wandb_project_name', type=str)
 parser.add_argument('--mode', type=str, default='train', help='train / get_encoding / test')
-parser.add_argument('--lon_dim', type=int, default=31)
-parser.add_argument('--lat_dim', type=int, default=16)
+parser.add_argument('--lon_min', type=float)
+parser.add_argument('--lon_max', type=float)
+parser.add_argument('--lat_min', type=float)
+parser.add_argument('--lat_max', type=float)
+parser.add_argument('--interval', type=float, default=0.25)
+parser.add_argument('--lon_dim', type=int, default=None)
+parser.add_argument('--lat_dim', type=int, default=None)
 
 
 if __name__ == '__main__':
@@ -108,7 +113,36 @@ if __name__ == '__main__':
         with open(args.output_path+args.log_file, 'w') as f:
             f.write("Starting the training...")
             f.write(f"Cuda is available: {torch.cuda.is_available()}. There are {torch.cuda.device_count()} available GPUs.")
-            
+
+    ## derive arrays corresponding to the lon/lat low resolution grid points
+    lon_low_res_array = np.arange(args.lon_min-args.interval, args.lon_max+args.interval, args.interval)
+    lat_low_res_array = np.arange(args.lat_min-args.interval, args.lat_max+args.interval, args.interval)
+    args.lon_dim = lon_low_res_array.shape[0]
+    args.lat_dim = lat_low_res_array.shape[0]
+    #space_low_res_dim = lon_low_res_dim * lat_low_res_dim
+
+    #lon_high_res_array = np.arange(args.lon_min, args.lon_max, args.interval)
+    #lat_high_res_array = np.arange(args.lat_min, args.lat_max, args.interval)
+    #lon_high_res_dim = lon_high_res_array.shape[0] - 1
+    #lat_high_res_dim = lat_high_res_array.shape[0] - 1
+
+    #lon_input_points_array = np.arange(args.lon_min-args.interval*3, args.lon_max+args.interval*4, args.interval)
+    #lat_input_points_array = np.arange(args.lat_min-args.interval*3, args.lat_max+args.interval*4, args.interval)
+    #lon_input_points_dim = lon_input_points_array.shape[0]
+    #lat_input_points_dim = lat_input_points_array.shape[0]
+    #space_input_points_dim = lon_input_points_dim * lat_input_points_dim
+
+    #write_log(f"\nThe considered low-res lon-lat windows is [{lon_low_res_array.min()}, {lon_low_res_array.max()+args.interval}] x [{lat_low_res_array.min()}, {lat_low_res_array.max()+args.interval}]. " +
+    #        f"\nThe number of points is (lon x lat) {lon_low_res_dim} x {lat_low_res_dim}.", args)
+    
+    #write_log(f"\nThe considered high-res lon-lat windows is [{lon_high_res_array.min()}, {lon_high_res_array.max()+args.interval}] x [{lat_high_res_array.min()}, {lat_high_res_array.max()+args.interval}]. " +
+    #        f"\nThe number of cells is (lon x lat) {lon_high_res_dim} x {lat_high_res_dim}", args)
+
+    #args.lon_min = args.lon_min - args.interval
+    #args.lon_max = args.lon_max + args.interval
+    #args.lat_min = args.lat_min - args.interval
+    #args.lat_max = args.lat_max + args.interval
+
 #-----------------------------------------------------
 #--------------- MODEL, LOSS, OPTIMIZER --------------
 #-----------------------------------------------------
