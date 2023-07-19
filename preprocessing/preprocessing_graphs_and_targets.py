@@ -480,7 +480,7 @@ if __name__ == '__main__':
 
         fig, ax = plt.subplots(figsize=(x_size, y_size))
 
-        _ = ax.scatter(pos[:,0], pos[:,1], c='grey',alpha=0.2,marker="s", s=40, cmap='turbo')
+        _ = ax.scatter(pos[:,0], pos[:,1], c='grey',alpha=0.2,marker="s", s=40)
         c = torch.tensor(abs(cell_idx_array)).int()
 
         for s in subgraphs:
