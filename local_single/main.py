@@ -104,6 +104,7 @@ if __name__ == '__main__':
         os.environ['WANDB_API_KEY'] = 'b3abf8b44e8d01ae09185d7f9adb518fc44730dd'
         os.environ['WANDB_USERNAME'] = 'valebl'
         os.environ['WANDB_MODE'] = 'offline'
+        os.environ['WANDB_CONFIG_DIR']='./wandb/'
 
         accelerator.init_trackers(
             project_name=args.wandb_project_name
@@ -204,9 +205,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
     
     epoch_start = 0
-
-    if args.mode == 'train':
-        net_names = ["encoder.", "gru."]
+    net_names = ["encoder.", "gru."]
     #elif args.mode == 'get_encoding':
     #    net_names = ["encoder.", "gru."]
     
@@ -215,13 +214,10 @@ if __name__ == '__main__':
         model = load_encoder_checkpoint(model, args.checkpoint_file, args.output_path, args.log_file, accelerator=accelerator,
                 fine_tuning=args.fine_tuning, net_names=net_names)
     elif args.load_checkpoint is True and args.ctd_training is True:
-        raise RuntimeError("Either load the ae parameters or continue the training.")
-
-    if args.mode == 'train' and args.ctd_training:
         if accelerator is None or accelerator.is_main_process:
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write("\nLoading the checkpoint to continue the training.")
-        checkpoint = torch.load(args.checkpoint_ctd)
+        checkpoint = torch.load(args.checkpoint_file)
         try:
             model.load_state_dict(checkpoint["parameters"])
         except:
