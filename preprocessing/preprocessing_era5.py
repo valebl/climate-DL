@@ -8,13 +8,13 @@ import sys
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--input_path', type=str, help='path to input directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
-parser.add_argument('--output_path', type=str, help='path to output directory', default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/')
+parser.add_argument('--input_path', type=str, help='path to input directory')
+parser.add_argument('--output_path', type=str, help='path to output directory')
 parser.add_argument('--input_files_prefix', type=str, help='prefix for the input files (convenction: {prefix}{parameter}.nc)', default='sliced_')
 parser.add_argument('--log_file', type=str, help='log file name', default='log.txt')
 parser.add_argument('--output_file', type=str, help='path to output directory', default='input_standard.pkl')
 parser.add_argument('--n_levels', type=int, help='number of pressure levels considered', default=5)
-parser.add_argument('--stats_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/NORTH_ITALY/north_italy/')
+parser.add_argument('--stats_path', type=str)
 parser.add_argument('--means_file', type=str, default='means.pkl')
 parser.add_argument('--stds_file', type=str, default='stds.pkl')
 parser.add_argument('--mean_std_over_variable', action='store_true')

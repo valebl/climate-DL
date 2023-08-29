@@ -11,9 +11,9 @@ sbatch << EOT
 #SBATCH --mem=${MEM}
 #SBATCH --ntasks-per-node=32 # out of 128
 #SBATCH --gres=gpu:4          # 1 gpus per node out of 4
-#SBATCH --job-name=test
+#SBATCH --job-name=${JOB_NAME}
 #SBATCH --mail-type=FAIL,END
-# SBATCH --mail-user=vblasone@ictp.it
+# SBATCH --mail-user=${MAIL}
 #SBATCH -o ${LOG_PATH}/run.out
 #SBATCH -e ${LOG_PATH}/run.err
 

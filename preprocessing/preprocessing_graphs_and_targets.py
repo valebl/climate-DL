@@ -34,6 +34,7 @@ parser.add_argument('--make_plots', action='store_true', default=False)
 parser.add_argument('--suffix', type=str, default='')
 parser.add_argument('--use_precomputed_stats', action='store_true', default=True)
 parser.add_argument('--precomputed_stats_file', type=str, default='TOPO/z_stats_italy.pkl')
+parser.add_argument('--idx_time_path', type=str, default='')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     '''
@@ -157,7 +158,7 @@ if __name__ == '__main__':
     #------------------- TIME INDEXES --------------------
     #-----------------------------------------------------
 
-    with open("idx_time_2001-2016.pkl", 'rb') as f:
+    with open(args.idx_time_path, 'rb') as f:
         idx_time_years = pickle.load(f)
 
     idx_time_train, idx_time_test = subdivide_train_test_time_indexes(idx_time_years)
