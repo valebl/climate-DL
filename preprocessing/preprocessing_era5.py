@@ -1,5 +1,5 @@
 import numpy as np
-import xarray as xr
+import netCDF4 as nc
 import torch
 import pickle
 import argparse
@@ -42,12 +42,14 @@ if __name__ == '__main__':
     for p_idx, p in enumerate(params):
         with open(args.output_path + args.log_file, 'a') as f:
             f.write(f'\nPreprocessing {args.input_files_prefix}{p}.nc ...')
-        with xr.open_dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as f:
-            data = f[p].values
+        #with xr.open_dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as f:
+        #    data = f[p].values
+        with nc.Dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as ds:
+            data = ds[p][:]
             if p_idx == 0: # first parameter being processed -> get dimensions and initialize the input dataset
-                lat_dim = len(f.latitude)
-                lon_dim = len(f.longitude)
-                time_dim = len(f.time)
+                lat_dim = len(f['latitude'])
+                lon_dim = len(f['longitude'])
+                time_dim = len(f['time'])
                 input_ds = np.zeros((time_dim, n_params, args.n_levels, lat_dim, lon_dim), dtype=np.float32) # variables, levels, time, lat, lon
         input_ds[:, p_idx,:,:,:] = data
 
