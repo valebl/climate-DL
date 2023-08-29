@@ -47,9 +47,9 @@ if __name__ == '__main__':
         with nc.Dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as ds:
             data = ds[p][:]
             if p_idx == 0: # first parameter being processed -> get dimensions and initialize the input dataset
-                lat_dim = len(f['latitude'])
-                lon_dim = len(f['longitude'])
-                time_dim = len(f['time'])
+                lat_dim = len(ds['latitude'])
+                lon_dim = len(ds['longitude'])
+                time_dim = len(ds['time'])
                 input_ds = np.zeros((time_dim, n_params, args.n_levels, lat_dim, lon_dim), dtype=np.float32) # variables, levels, time, lat, lon
         input_ds[:, p_idx,:,:,:] = data
 
