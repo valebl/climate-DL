@@ -3,7 +3,7 @@
 #------------------#
 # SLURM PARAMETERS #
 #------------------#
-TIME="00:10:00"
+TIME="24:00:00"
 MEM="60G"
 JOB_NAME="test_cl"
 MAIL="vblasone@ictp.it"
@@ -36,13 +36,13 @@ OUT_LOSS_FILE="loss.csv"
 # TRAINING PARAMETERS #
 #---------------------#
 PCT_TRAINING=1
-EPOCHS=25
+EPOCHS=50
 BATCH_SIZE=64
 LR_STEP_SIZE=25
 LR=0.0001
 WEIGHT_DECAY=0.0
 PERFORMANCE="accuracy"
-MODEL_NAME="Classifier_old"
+MODEL_NAME="Classifier_edges"
 LOSS_FN="sigmoid_focal_loss"
 MODEL_TYPE="cl"
 CHECKPOINT_FILE="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/data_fvg_preprocessed/checkpoint_ae_e3.pth"
