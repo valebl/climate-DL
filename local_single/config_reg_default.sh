@@ -12,6 +12,7 @@ LOG_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_reg/"
 #--------------------------------------------#
 # PATHS (conda env, main, accelerate config) #
 #--------------------------------------------#
+SOURCE_PATH="/leonardo/home/userexternal/vblasone/.bashrc"
 ENV_PATH="/leonardo_work/ICT23_ESP_0/env/GNNenv"
 MAIN_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/"
 ACCELERATE_CONFIG_PATH="/leonardo/home/userexternal/vblasone/.cache/huggingface/accelerate/default_config_4.yaml"
@@ -30,6 +31,7 @@ GRAPH_FILE="G_train.pkl"
 SUBGRAPHS_FILE="subgraphs.pkl"
 OUT_CHECKPOINT_FILE="checkpoint.pth"
 OUT_LOSS_FILE="loss.csv"
+WEIGHTS_FILE="weights_reg_train.pkl"
 
 #---------------------#
 # TRAINING PARAMETERS #
