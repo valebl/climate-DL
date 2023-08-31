@@ -12,8 +12,8 @@ LOG_PATH="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/fvg/"
 #-------------------------------#
 # CHOOSE PREP PHASES TO PERFORM #
 #-------------------------------#
-PERFORM_PHASE_1A=true
-PERFORM_PHASE_1B=true
+PERFORM_PHASE_1A=false
+PERFORM_PHASE_1B=false
 PERFORM_PHASE_2=true
 
 #---------------------------#

@@ -134,7 +134,7 @@ class Trainer(object):
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.9, gamma=5):
+    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.9, gamma=2):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
         acc_class1_meter = AverageMeter()
