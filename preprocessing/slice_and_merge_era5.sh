@@ -20,16 +20,14 @@ echo $lat_min_era5
 echo $lat_max_era5
 
 ## slice each file to the desired lon and lat window
-#for v in 'q' 't' 'u' 'v' 'z' ; do
-#	files=$(ls ${v}_*.nc)
-#	for file in $files ; do
-#		cdo sellonlatbox,$lon_min_era5,$lon_max_era5,$lat_min_era5,$lat_max_era5 "${INPUT_PATH_PHASE_1A}${file}" "${OUTPUT_PATH}${PREFIX}${file}"
-#	done
-#done
+for v in 'q' 't' 'u' 'v' 'z' ; do
+	files=$(ls ${v}_*.nc)
+	for file in $files ; do
+		cdo sellonlatbox,$lon_min_era5,$lon_max_era5,$lat_min_era5,$lat_max_era5 "${INPUT_PATH_PHASE_1A}${file}" "${OUTPUT_PATH}${PREFIX}${file}"
+	done
+done
 
-#echo "Done"
-
-cdo sellonlatbox,$lon_min_era5,$lon_max_era5,$lat_min_era5,$lat_max_era5 "${INPUT_PATH_PHASE_1A}q_2001.nc" "${OUTPUT_PATH}sliced_q_2001.nc"
+echo "Done"
 
 cd ${OUTPUT_PATH}
 
