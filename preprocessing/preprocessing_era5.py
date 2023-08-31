@@ -44,7 +44,7 @@ if __name__ == '__main__':
             f.write(f'\nPreprocessing {args.input_files_prefix}{p}.nc ...')
         #with xr.open_dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as f:
         #    data = f[p].values
-        with nc.Dataset(f'{args.input_path}/{args.input_files_prefix}{p}.nc') as ds:
+        with nc.Dataset(f'{args.input_path}{args.input_files_prefix}{p}.nc') as ds:
             data = ds[p][:]
             if p_idx == 0: # first parameter being processed -> get dimensions and initialize the input dataset
                 lat_dim = len(ds['latitude'])
