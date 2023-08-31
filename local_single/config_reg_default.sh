@@ -7,7 +7,7 @@ TIME="24:00:00"
 MEM="60G"
 JOB_NAME="test_reg"
 MAIL="vblasone@ictp.it"
-LOG_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_reg/"
+LOG_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_test/"
 
 #--------------------------------------------#
 # PATHS (conda env, main, accelerate config) #
@@ -21,7 +21,7 @@ ACCELERATE_CONFIG_PATH="/leonardo/home/userexternal/vblasone/.cache/huggingface/
 # INPUT/OUTPUT FILES PARAMETERS #
 #-------------------------------#
 INPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/data_fvg_preprocessed/"
-OUTPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_reg/"
+OUTPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_test/"
 INPUT_FILE="input_standard.pkl"
 IDX_FILE="idx_train_reg.pkl"
 LOG_FILE="log.txt"

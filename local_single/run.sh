@@ -28,7 +28,7 @@ conda activate ${ENV_PATH}
 
 cd ${MAIN_PATH}
 
-if [ f [ -z ${WEIGHTS_FILE} ]; then
+if [ -z ${WEIGHTS_FILE} ]; then
 	WEIGHTS=""
 else
 	WEIGHTS="--weights_file=${WEIGHTS_FILE}"
