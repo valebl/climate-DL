@@ -7,7 +7,7 @@ TIME="24:00:00"
 MEM="60G"
 JOB_NAME="test_reg"
 MAIL="vblasone@ictp.it"
-LOG_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_test/"
+LOG_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_reg_leo/"
 
 #--------------------------------------------#
 # PATHS (conda env, main, accelerate config) #
@@ -20,8 +20,8 @@ ACCELERATE_CONFIG_PATH="/leonardo/home/userexternal/vblasone/.cache/huggingface/
 #-------------------------------#
 # INPUT/OUTPUT FILES PARAMETERS #
 #-------------------------------#
-INPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/data_fvg_preprocessed/"
-OUTPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_test/"
+INPUT_PATH="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/fvg/"
+OUTPUT_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_reg_leo/"
 INPUT_FILE="input_standard.pkl"
 IDX_FILE="idx_train_reg.pkl"
 LOG_FILE="log.txt"
@@ -46,7 +46,7 @@ MODEL_NAME="Regressor_edges"
 LOSS_FN="weighted_mse_loss"
 MODEL_TYPE="reg"
 CHECKPOINT_FILE="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/data_fvg_preprocessed/checkpoint_ae_e3.pth"
-WANDB_PROJECT_NAME="Regressor-test-Leonardo"
+WANDB_PROJECT_NAME="Regressor-test-Leonardo-fvg"
 
 #----------------------------------------#
 # COORDINATES OF CONSIDERED SPATIAL AREA #

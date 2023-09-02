@@ -9,10 +9,11 @@ import time
 import copy
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2):
+    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=512, n_layers=2):
         super().__init__() 
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
+        self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
@@ -37,14 +38,21 @@ class Autoencoder(nn.Module):
 
         # define the decoder modules
         self.gru = nn.Sequential(
-            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
+            nn.GRU(gru_input_dim, gru_hidden_dim, n_layers, batch_first=True),
+        )
+
+        self.dense = nn.Sequential(
+            nn.Linear(gru_hidden_dim*25, encoding_dim),
+            nn.ReLU()
+        )
+
+        self.decoder_dense = nn.Sequential(
+            nn.Linear(encoding_dim, encoding_dim*25),
+            nn.ReLU()
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(self.gru_hidden_dim, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Linear(512, 2048),
+            nn.Linear(encoding_dim, 2048),
             nn.Unflatten(-1,(256, 2, 2, 2)),
             nn.Upsample(size=(3,4,4)),
             nn.ReLU(),
@@ -59,13 +67,16 @@ class Autoencoder(nn.Module):
 
     def forward(self, X):
         s = X.shape
-        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])            # (batch_dim*25, 5, 5, 6, 6)
-        X = self.encoder(X)                                         # (batch_dim*25, cnn_output_dim)
-        X = X.reshape(s[0], s[1], self.cnn_output_dim)              # (batch_dim, 25, cnn_output_dim)
-        out, _ = self.gru(X) # out, h                               # (batch_dim, 25, gru_hidden_dim
-        out = out.reshape(s[0]*s[1], self.gru_hidden_dim)           # (batch_dim*25, gru_hidden_dim)
-        out = self.decoder(out)                                     # (batch_dim*25, gru_hidden_dim)
-        out = out.reshape(s[0], s[1], s[2], s[3], s[4], s[5])       # (batch_dim, 25, 5, 5, 6, 6)
+        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])                # (batch_dim*25, 5, 5, 6, 6)
+        X = self.encoder(X)                                             # (batch_dim*25, cnn_output_dim)
+        X = X.reshape(s[0], s[1], self.cnn_output_dim)                  # (batch_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X) # out, h                              # (batch_dim, 25, gru_hidden_dim
+        encoding = encoding.reshape(s[0], s[1]*self.gru_hidden_dim)     # (batch_dim, 25*gru_hidden_dim)
+        encoding = self.dense(encoding)                                 # (batch_dim, encoding_dim)
+        out = self.decoder_dense(encoding)                              # (batch_dim, encoding_dim*25)
+        out = out.reshape(s[0]*25, self.encoding_dim)                   # (batch_dim*25, encoding_dim)
+        out = self.decoder(out)                                         # (batch_dim,*25, 5*5*6*6)
+        out = out.reshape(s[0], s[1], s[2], s[3], s[4], s[5])           # (batch_dim, 25, 5, 5, 6, 6)
         return out
 
 
