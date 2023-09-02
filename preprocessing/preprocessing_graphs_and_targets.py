@@ -509,7 +509,7 @@ if __name__ == '__main__':
         for i, lat_i in enumerate(lat_low_res_array):
             for j, lon_j in enumerate(lon_low_res_array):
                 k = i * lon_low_res_dim + j
-                _ = ax.text(lon_j+0.1, lat_i+0.1, k, fontsize=font_size)
+                _ = ax.text(lon_j+0.1, lat_i+0.1, k)
                                                                                                         
         plot_italy(zones, color='black', ax=ax, alpha_fill=0, linewidth=2)
         plt.xlim([lon_input_points_array.min() - 0.25, lon_input_points_array.max() + 0.25])

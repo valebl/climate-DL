@@ -48,12 +48,6 @@ LON_MAX=14.00
 LAT_MIN=45.50
 LAT_MAX=46.75
 
-## north
-#lon_min=6.75
-#lon_max=14.00
-#lat_min=43.75
-#lat_max=47.00
-
 
 #--------------do not change here below------------------
 
