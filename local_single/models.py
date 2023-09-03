@@ -536,12 +536,16 @@ class Classifier_edges(nn.Module):
 
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.x[:,:self.node_dim]
-            features[:,self.node_dim:] = encoding[i,:]
+            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            #features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            #features[:,self.node_dim:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1] + 2)).to(device)
+            features[:,:1] = data.x[:,:1]
+            features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
+            features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float()) 
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
@@ -602,12 +606,17 @@ class Regressor_edges(nn.Module):
 
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            features[:,:self.node_dim] = data.x[:,:self.node_dim]
-            features[:,self.node_dim:] = encoding[i,:]
+            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            #features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            #features[:,self.node_dim:] = encoding[i,:]
+            # add positional encodings
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1] + 2)).to(device)
+            features[:,:1] = data.x[:,:1]
+            features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
+            features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
+        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze(), data_batch.w.squeeze()

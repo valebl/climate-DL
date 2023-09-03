@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 
 from torch_geometric.data import Data
 from utils_preprocessing import create_zones, plot_italy
+import torch_geometric.transforms as T
+transform = T.AddLaplacianEigenvectorPE(k=2)
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -458,6 +460,7 @@ if __name__ == '__main__':
         cell_idx_list = torch.tensor([ii * lon_low_res_dim + jj for ii in range(lat_idx-1,lat_idx+2) for jj in range(lon_idx-1,lon_idx+2)])
         subgraph["mask_1_cell"] = mask_1_cell_subgraphs[space_idx].cpu()  # (n_nodes)
         subgraph["mask_9_cells"] = mask_9_cells_subgraphs[space_idx].cpu()         # (n_nodes)
+        subgraph = transform(subgraph)
         subgraphs[space_idx] = subgraph
         
         if space_idx % 10 == 0:
