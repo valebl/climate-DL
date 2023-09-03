@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def create_zones(zones_file='/m100_work/ICT23_ESP_C/vblasone/precipitation-maps/Italia.txt'):
+def create_zones(zones_file='/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/Italia.txt'):
     zones = []
     with open(zones_file) as f:
         lines = f.read()
