@@ -19,6 +19,7 @@ parser.add_argument('--log_file', type=str, default='log_ae.txt')
 parser.add_argument('--input_path', type=str, default='/m100_work/ICT23_ESP_C/SHARED/')
 parser.add_argument('--target_file', type=str, default='GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
 parser.add_argument('--topo_file', type=str, default='TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
+parser.add_argument('--plot_name', type=str, default='graph.png')
 
 #-- lat lon grid values
 parser.add_argument('--lon_min', type=float, default=6.50)
@@ -475,48 +476,56 @@ if __name__ == '__main__':
 
         x_size = lon_input_points_dim
         y_size = lat_input_points_dim
-        font_size = int(18 // 7 * x_size)
+        
+        y_size_fig = 8.27
+        x_size_fig = x_size * y_size_fig / y_size
 
-        plt.rcParams.update({'font.size': int(16 // 7 * y_size)})
+        font_size = 16
+        font_size_text = 6 * 41 / (x_size+5)
+        linewidth_grids = 0.5
+        linewidth_italy = 1
+        area=4.0 * 41 / (x_size+5)
 
-        fig, ax = plt.subplots(figsize=(x_size, y_size))
+        plt.rcParams.update({'font.size': font_size})
 
-        _ = ax.scatter(pos[:,0], pos[:,1], c='grey',alpha=0.2,marker="s", s=40)
+        fig, ax = plt.subplots(figsize=(x_size_fig, y_size_fig))
+
+        _ = ax.scatter(pos[:,0], pos[:,1], c='grey',alpha=0.2,marker="s", s=area)
         c = torch.tensor(abs(cell_idx_array)).int()
 
         for s in subgraphs:
             if s != []:
                 alpha = np.ones(s.mask_1_cell.sum())*0.2
                 _ = ax.scatter(pos[:,0][s.mask_1_cell],pos[:,1][s.mask_1_cell],
-                        c=c[s.mask_1_cell], marker="s", s=40, vmin = 0,
+                        c=c[s.mask_1_cell], marker="s", s=area, vmin = 0,
                         vmax = space_low_res_dim, cmap='turbo', alpha=alpha)
 
         for l in lon_input_points_array:
-            _ = ax.plot([l, l], [lat_input_points_array.min(), lat_input_points_array.max()], 'b', alpha=0.2)
+            _ = ax.plot([l, l], [lat_input_points_array.min(), lat_input_points_array.max()], 'b', alpha=0.2, linewidth=linewidth_grids)
 
         for l in lat_input_points_array:
-            _ = ax.plot([lon_input_points_array.min(), lon_input_points_array.max()], [l,l], 'b', alpha=0.2)
+            _ = ax.plot([lon_input_points_array.min(), lon_input_points_array.max()], [l,l], 'b', alpha=0.2, linewidth=linewidth_grids)
 
         lon_plot_array = np.arange(lon_low_res_array.min(), lon_low_res_array.max()+args.interval*2, args.interval)
         lat_plot_array = np.arange(lat_low_res_array.min(), lat_low_res_array.max()+args.interval*2, args.interval)
 
         for l in lon_plot_array:
-            _ = ax.plot([l, l], [lat_plot_array.min(), lat_plot_array.max()], 'k', alpha=0.4)
+            _ = ax.plot([l, l], [lat_plot_array.min(), lat_plot_array.max()], 'k', alpha=0.4, linewidth=linewidth_grids)
 
         for l in lat_plot_array:
-            _ = ax.plot([lon_plot_array.min(), lon_plot_array.max()], [l,l], 'k', alpha=0.4)
+            _ = ax.plot([lon_plot_array.min(), lon_plot_array.max()], [l,l], 'k', alpha=0.4, linewidth=linewidth_grids)
 
         for i, lat_i in enumerate(lat_low_res_array):
             for j, lon_j in enumerate(lon_low_res_array):
                 k = i * lon_low_res_dim + j
-                _ = ax.text(lon_j+0.1, lat_i+0.1, k)
+                _ = ax.text(lon_j+0.1, lat_i+0.1, k, fontsize=font_size_text)
                                                                                                         
-        plot_italy(zones, color='black', ax=ax, alpha_fill=0, linewidth=2)
+        plot_italy(zones, color='black', ax=ax, alpha_fill=0, linewidth=linewidth_italy)
         plt.xlim([lon_input_points_array.min() - 0.25, lon_input_points_array.max() + 0.25])
         plt.ylim([lat_input_points_array.min() - 0.25, lat_input_points_array.max() + 0.25])
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(args.output_path + f'graph.png', dpi=400, bbox_inches='tight', pad_inches=0.0)
+        plt.savefig(args.output_path + args.plot_name, dpi=400, bbox_inches='tight', pad_inches=0.0)
 
     write_log("\nDone!", args)
 
