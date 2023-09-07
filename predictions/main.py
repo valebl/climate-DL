@@ -56,6 +56,7 @@ parser.add_argument('--day_start', type=int, default=None)
 parser.add_argument('--year_end', type=int, default=None)
 parser.add_argument('--month_end', type=int, default=None)
 parser.add_argument('--day_end', type=int, default=None)
+parser.add_argument('--device', type=str, default='cuda')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -91,8 +92,8 @@ if __name__ == '__main__':
         f.write(f"\nTest idxs from {start_idx} to {end_idx}")
 
     G_test["y"] = G_test["y"][:,torch.tensor(idx_to_key_time)]
-    G_test["y_cl"] = torch.zeros(G_test["y"].shape)
-    G_test["y_reg"] = torch.zeros(G_test["y"].shape)
+    G_test["pr_cl"] = torch.zeros(G_test["y"].shape)
+    G_test["pr_reg"] = torch.zeros(G_test["y"].shape)
 
 #-----------------------------------------------------
 #----------------- DATASET AND MODELS ----------------
@@ -128,15 +129,17 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nClassifier:")
 
-    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False)
+    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, 
+            net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nRegressor:")
 
-    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None, net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False)
-    
-    model_cl = model_cl.cuda()
-    model_reg = model_reg.cuda()
+    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None,
+            net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
+
+    model_cl = model_cl.to(args.device)
+    model_reg = model_reg.to(args.device)
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\n\nDone!")
