@@ -12,7 +12,7 @@ sys.path.append("/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single")
 import models
 import dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
-from utils_predictions import create_zones, plot_maps
+from utils_predictions import create_zones, plot_maps, date_to_day
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -23,12 +23,12 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
 parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
-parser.add_argument('--idx_time_test', type=str, default="idx_time_test.pkl")
+parser.add_argument('--idx_time_file', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file_test', type=str) 
 parser.add_argument('--subgraphs', type=str) 
 parser.add_argument('--checkpoint_cl', type=str)
 parser.add_argument('--checkpoint_reg', type=str)
-parser.add_argument('--output_file', type=str, default="G_predictions_2016.pkl")
+parser.add_argument('--output_file', type=str, default="G_predictions.pkl")
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -37,6 +37,8 @@ parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
 parser.add_argument('--use_accelerate',  action='store_true')
 parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_false')
 parser.add_argument('--make_plots',  action='store_true', default=False)
+parser.add_argument('--large_graph',  action='store_true')
+parser.add_argument('--no-large_graph', dest='large_graph', action='store_false')
 
 #-- other
 parser.add_argument('--test_year', type=int, default=2016)
@@ -47,6 +49,13 @@ parser.add_argument('--model_name_cl', type=str, default='Classifier_old_test')
 parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
 parser.add_argument('--idx_min', type=int, default=130728)
 parser.add_argument('--img_extension', type=str, default='pdf')
+
+parser.add_argument('--year_start', type=int, default=None)
+parser.add_argument('--month_start', type=int, default=None)
+parser.add_argument('--day_start', type=int, default=None)
+parser.add_argument('--year_end', type=int, default=None)
+parser.add_argument('--month_end', type=int, default=None)
+parser.add_argument('--day_end', type=int, default=None)
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -75,17 +84,35 @@ if __name__ == '__main__':
     with open(args.input_path + args.graph_file_test, 'rb') as f:
         G_test = pickle.load(f)
 
+    start_idx, end_idx = date_to_day(args.year_start, args.month_start, args.day_start, args.year_end, args.month_end, args.day_end)
+    idx_to_key_time = list(range(start_idx, end_idx))
+
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f"\nTest idxs from {start_idx} to {end_idx}")
+
+    G_test["y"] = G_test["y"][:,torch.tensor(idx_to_key_time)]
+    G_test["y_cl"] = torch.zeros(G_test["y"].shape)
+    G_test["y_reg"] = torch.zeros(G_test["y"].shape)
+
 #-----------------------------------------------------
 #----------------- DATASET AND MODELS ----------------
 #-----------------------------------------------------
 
-    Dataset = getattr(dataset, 'Dataset_pr_test')
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_gnn')
+    if args.large_graph:
+        dataset_type = 'Dataset_pr_test_large'
+        custom_collate_type = 'custom_collate_fn_gnn_large'
+    else:
+        dataset_type = 'Dataset_pr_test'
+        custom_collate_type = 'custom_collate_fn_gnn'
+
+
+    Dataset = getattr(dataset, dataset_type)
+    custom_collate_fn = getattr(dataset, custom_collate_type)
     
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=args.idx_min, time_max=140255) #time_min=113951, time_max=140255)
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=min(idx_to_key_time), time_max=140255, idx_to_key_time=idx_to_key_time) #time_min=113951, time_max=140255)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
@@ -149,35 +176,36 @@ if __name__ == '__main__':
             valid_examples_space = pickle.load(f)
         zones = create_zones()
         mask = np.logical_and(np.array([~torch.isnan(G_test.y[i,:]).all().numpy() for i in range(G_test.pr.shape[0])]), np.in1d(G_test.low_res, valid_examples_space))
+        y_target = G_test.y.numpy()[mask,:]
         # Classifier
-        y_cl = torch.where(G_test.y[mask,:] >= 0.1, 1.0, 0.0)
-        corrects = (G_test.pr_cl.numpy()[mask,:].flatten() == y_cl.numpy().flatten())
-        acc = corrects.sum() / len(y_cl.flatten()) * 100
-        acc_0 = corrects[y_cl.flatten()==0].sum() / len(y_cl.flatten()[y_cl.flatten()==0]) * 100
-        acc_1 = corrects[y_cl.flatten()==1].sum() / len(y_cl.flatten()[y_cl.flatten()==1]) * 100            
+        y_target_cl = torch.where(torch.tensor(y_target) >= 0.1, 1.0, 0.0)
+        corrects = (G_test.pr_cl.numpy()[mask,:].flatten() == y_target_cl.numpy().flatten())
+        acc = corrects.sum() / len(y_target_cl.flatten()) * 100
+        acc_0 = corrects[y_target_cl.flatten()==0].sum() / len(y_target_cl.flatten()[y_target_cl.flatten()==0]) * 100
+        acc_1 = corrects[y_target_cl.flatten()==1].sum() / len(y_target_cl.flatten()[y_target_cl.flatten()==1]) * 100            
         with open(args.output_path + args.log_file, 'a') as f:
             f.write(f"\nClassifier\nAccuracy: {acc:.2f}\nAccuracy on class 0: {acc_0:.2f}\nAccuracy on class 1: {acc_1:.2f}")
         
-        plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_cl.numpy(), pr_min=0.1, pr_max=2000, aggr=np.nansum,
+        plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_target_cl, pr_min=0.1, aggr=np.nansum,
             title=f"Classifier - Number of hours with pr>=0.1mm for the year {args.test_year}", idx_start=0, idx_end=-1, legend_title="hours",
             save_path=args.output_path, save_file_name=f"maps_cl_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
         # Regressor
         pr_mask = G_test.y.numpy()[mask,:] >= 0.1
-        plot_maps(G_test.pos[mask,:], G_test.pr_reg.numpy()[mask,:] * pr_mask, G_test.y.numpy()[mask,:] * pr_mask, pr_min=0.1, pr_max=2500, aggr=np.nansum,
+        plot_maps(G_test.pos[mask,:], G_test.pr_reg.numpy()[mask,:] * pr_mask, y_target * pr_mask, pr_min=0.1, aggr=np.nansum,
             title=f"Regressor - Cumulative precipitation when pr>=0.1 in observations for the year {args.test_year}", idx_start=0, idx_end=-1,
             save_path=args.output_path, save_file_name=f"maps_reg_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
         # Combines results
-        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.1, pr_max=2500, aggr=np.nansum,
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.1, aggr=np.nansum,
             title=f"Cumulative precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
             save_path=args.output_path, save_file_name=f"maps_cumulative_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
-        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], G_test.y.numpy()[mask,:], pr_min=0.0, pr_max=0.25, aggr=np.nanmean,
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.0, aggr=np.nanmean,
             title=f"Mean precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
             save_path=args.output_path, save_file_name=f"maps_mean_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
         # Histogram
         plt.rcParams.update({'font.size': 16})
         y = G_test.y.numpy()[mask,:].flatten()
         pr = G_test.pr.numpy()[mask,:].flatten()
-        pr_reg = G_test.pr_reg[mask,:].numpy().flatten()
+        pr_reg = y_target.flatten()
         binwidth = 1
         fig, ax = plt.subplots(figsize=(16,8))
         _ = plt.hist(y, bins=range(int(min(y)), int(max(y)+binwidth), binwidth), facecolor='blue', alpha=0.2, density=True, label='observations', edgecolor='k') 

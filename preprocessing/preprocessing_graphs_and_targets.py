@@ -282,7 +282,7 @@ if __name__ == '__main__':
     pr_sel_train_cl = np.array([np.where(pr >= threshold, 1, 0) for pr in pr_sel_train], dtype=np.float32)
     pr_sel_train_cl[np.isnan(pr_sel_train)] = np.nan
     pr_sel_train_reg = np.array([np.where(pr >= threshold, np.log1p(pr), np.nan) for pr in pr_sel_train], dtype=np.float32)
-    pr_sel_test = pr_sel[:,min(idx_time_test):max(idx_time_test)+1]
+    #pr_sel_test = pr_sel[:,min(idx_time_test):max(idx_time_test)+1]
 
     weights = [1,2,5,10,20,50]
     weights_thresholds = [0,1,5,10,20,50]
@@ -375,7 +375,7 @@ if __name__ == '__main__':
     #-----------------------------------------------------
 
     ## create the graph objects
-    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel_test), pr_cl=torch.zeros(pr_sel_test.shape),
+    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel), pr_cl=torch.zeros(pr_sel_test.shape),
             pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
             edge_attr=torch.tensor(edge_attr_cat), x=torch.tensor(z_sel_s).unsqueeze_(1))
     G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(z_sel_s).unsqueeze_(1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
@@ -384,6 +384,8 @@ if __name__ == '__main__':
     ## write some files
     with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_test, f)
+
+    sys.exit()
 
     with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)

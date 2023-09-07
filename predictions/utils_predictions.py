@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+from datetime import datetime, timedelta, date
 
 def create_zones(zones_file='/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/Italia.txt'):
     zones = []
@@ -42,8 +42,8 @@ def draw_rectangle(x_min, x_max, y_min, y_max, color, ax, fill=False, fill_color
             fill_color = color
         ax.fill(x_grid, y_grid, color=fill_color, alpha=alpha)
 
-def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name, 
-        x_size, y_size, font_size, aggr=None, title="", 
+def plot_maps(pos, pr_pred, pr, zones, save_path, save_file_name, 
+        x_size, y_size, font_size, pr_min=None, pr_max=None, aggr=None, title="", 
         cmap='turbo', idx_start=1+31*24, idx_end=-1, legend_title="pr"):
     
     plt.rcParams.update({'font.size': int(16 // 7 * y_size)})
@@ -52,6 +52,9 @@ def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name
     lon = pos[:,0]
     lat = pos[:,1]
     
+    pr_min = pr_min if pr_min is not None else min(min(pr_pred), min(pr))
+    pr_max = pr_max if pr_max is not None else max(max(pr_pred), max(pr))
+
     v = pr_pred[:,idx_start:idx_end]
     v_s = aggr(v, axis=1)
     im = ax[0].scatter(lon,lat,c=v_s, marker="s", s=110, vmin=pr_min, vmax=pr_max, cmap=cmap)
@@ -79,3 +82,10 @@ def plot_maps(pos, pr_pred, pr, pr_min, pr_max, zones, save_path, save_file_name
     _ = fig.suptitle(title, fontsize=font_size, x=0.45, y=1)
 
     plt.savefig(f'{save_path}{save_file_name}', dpi=400, bbox_inches='tight', pad_inches=0.0)
+
+def date_to_day(year_start, month_start, day_start, year_end, month_end, day_end):
+    day_of_year_start = datetime(year_start, month_start, day_start).timetuple().tm_yday
+    day_of_year_end = datetime(year_end, month_end, day_end).timetuple().tm_yday
+    start_idx = (date(year_start, month_start, day_start) - date(2001, 1, 1)).days * 24
+    end_idx = (date(year_end, month_end, day_end) - date(2001, 1, 1)).days * 24 + 24
+    return start_idx, end_idx
