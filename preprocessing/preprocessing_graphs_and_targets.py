@@ -375,8 +375,8 @@ if __name__ == '__main__':
     #-----------------------------------------------------
 
     ## create the graph objects
-    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel), pr_cl=torch.zeros(pr_sel_test.shape),
-            pr_reg=torch.zeros(pr_sel_test.shape), low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
+    G_test = Data(num_nodes=z_sel_s.shape[0], pos=torch.tensor(pos), y=torch.tensor(pr_sel), valid_examples_space=valid_examples_space,
+            low_res=torch.tensor(abs(cell_idx_array)).int(), edge_index=torch.tensor(edge_index),
             edge_attr=torch.tensor(edge_attr_cat), x=torch.tensor(z_sel_s).unsqueeze_(1))
     G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(z_sel_s).unsqueeze_(1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
             low_res=torch.tensor(abs(cell_idx_array)).int())
