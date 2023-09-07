@@ -1,5 +1,6 @@
 import pickle
 import sys
+import numpy as np
 
 import torch
 from torch.utils.data import Dataset
@@ -146,6 +147,36 @@ class Dataset_pr_test(Dataset_pr):
         subgraph["y"] = y
         return input, subgraph
 
+class Dataset_pr_test_large(Dataset_pr_test):
+    def __init__(self, idx_to_key_time, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.idx_to_key_time = idx_to_key_time #self._load_data_into_memory_large()
+        self.length = len(self.idx_to_key_time)
+
+    def __getitem__(self, idx):
+        time_idx = self.idx_to_key_time[idx]
+        batch = []
+        for i, space_idx in enumerate(self.test_graph.valid_examples_space):
+            lat_idx = space_idx // self.lon_low_res_dim
+            lon_idx = space_idx % self.lon_low_res_dim
+            #-- derive input
+            input = torch.zeros((25, 5, 5, 6, 6))                               # (time, var, lev, lat, lon)
+            input[:, :] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
+            #-- derive graphs and target
+            subgraph = self.subgraphs[space_idx].clone()
+            subgraph["time_idx"] = time_idx - self.time_min
+            y = self.test_graph.y[subgraph.mask_1_cell, time_idx - self.time_min]
+            subgraph["y"] = y
+            batch.append([input, subgraph])
+        return batch
+
+    #def _load_data_into_memory_large(self):
+    #    with open(self.args.input_path + self.args.idx_time_file,'rb') as f:
+    #        idx_to_key_time = pickle.load(f)
+    #        self.length = len(idx_to_key_time)
+    #        print(self.length)
+    #    return idx_to_key_time
+
 
 def custom_collate_fn_ae(batch):
     input = torch.stack(batch)
@@ -157,4 +188,13 @@ def custom_collate_fn_gnn(batch):
     data = [item[1] for item in batch]
     input = default_convert(input)
     return input, data
-    
+
+def custom_collate_fn_gnn_large(batch):
+    input = torch.stack([item[0] for item in batch[0]])
+    data = [item[1] for item in batch[0]]
+    #batch = batch[0]
+    #input = torch.stack([item for item in batch[0]])                        # shape = (batch_size, 25, 5, 5, 6, 6)
+    #data = batch[1]
+    #input = default_convert(input)
+    return input, data
+

@@ -66,11 +66,14 @@ def weighted_mse_loss(input_batch, target_batch, weights):
     #return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
     return torch.mean(weights * (input_batch - target_batch) ** 2)
 
-def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning=True):
+def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning=True, device=None):
     if accelerator is None or accelerator.is_main_process:
         with open(log_path+log_file, 'a') as f:
             f.write("\nLoading encoder parameters.") 
-    checkpoint = torch.load(checkpoint)
+    if device == 'cpu':
+        checkpoint = torch.load(checkpoint, map_location=torch.device('cpu'))
+    else:
+        checkpoint = torch.load(checkpoint)
     state_dict = checkpoint["parameters"]
     for name, param in state_dict.items():
         for net_name in net_names:
@@ -239,16 +242,17 @@ class Tester(object):
         model_cl.eval()
         model_reg.eval()
         step = 0
-        device = 'cuda' if accelerator is None else accelerator.device
+        device = args.device if accelerator is None else accelerator.device
         with torch.no_grad():    
             for X, data in dataloader:
-                X = X.cuda()
+                X = X.to(device)
                 model_cl(X, data, G_test, device)
                 model_reg(X, data, G_test, device)
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")
                 step += 1 
-        G_test["pr"] = G_test.pr_cl * G_test.pr_reg
-        
+        G_test["pr"] = G_test.pr_cl * G_test.pr_reg 
         return
+
+

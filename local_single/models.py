@@ -536,13 +536,12 @@ class Classifier_edges(nn.Module):
 
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            #features[:,:self.node_dim] = data.x[:,:self.node_dim]
-            #features[:,self.node_dim:] = encoding[i,:]
-            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1] + 2)).to(device)
-            features[:,:1] = data.x[:,:1]
-            features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
-            features[:,3:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            features[:,self.node_dim:] = encoding[i,:]
+            #features[:,:1] = data.x[:,:1]
+            #features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
+            #features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
         data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
@@ -606,14 +605,13 @@ class Regressor_edges(nn.Module):
 
         for i, data in enumerate(data_batch):
             data = data.to(device)
-            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
-            #features[:,:self.node_dim] = data.x[:,:self.node_dim]
-            #features[:,self.node_dim:] = encoding[i,:]
+            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[:,:self.node_dim] = data.x[:,:self.node_dim]
+            features[:,self.node_dim:] = encoding[i,:]
             # add positional encodings
-            features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1] + 2)).to(device)
-            features[:,:1] = data.x[:,:1]
-            features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
-            features[:,3:] = encoding[i,:]
+            #features[:,:1] = data.x[:,:1]
+            #features[:,1:3] = data.laplacian_eigenvector_pe[:,:]
+            #features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
         data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
@@ -819,6 +817,11 @@ class Classifier_edges_test(Classifier_edges):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
+        encoding = self._forward_encoder(X_batch, data_list, G_test, device)
+        G_test = self._forward_gnn(encoding, data_list, device)
+        return
+
+    def _forward_encoder(self, X_batch, data_list, G_test, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -826,30 +829,58 @@ class Classifier_edges_test(Classifier_edges):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
+        return encoding
 
+    def _forward_gnn(self, encoding, data_list, device):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
             features[:,:self.node_dim] = data.x[:,:self.node_dim]
             features[:,self.node_dim:] = encoding[i,:]
             data.__setitem__('x', features)
-            
+   
         data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
-        data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-        
+        data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float()) 
         data_list = data_batch.to_data_list()       
 
         for data in data_list:
             y_pred_i = data.x.squeeze()
-            G_test['pr_cl'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i > 0.5, 1.0, 0.0).cpu()        
+            G_test['pr_cl'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i > 0.5, 1.0, 0.0).cpu()      
+        return G_test
+
+
+class Classifier_edges_test_large(Classifier_edges_test):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X_batch, data_list, G_test, device):
+        encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
+        G_test = self._forward_gnn(encoding, data_list, device, G_test)
         return
+
+    def _forward_gnn(self, encoding, data_list, device, G_test):
+        features = torch.zeros((G_test.num_nodes), self.node_dim + encoding.shape[1]).to(device)   
+        for i, data in enumerate(data_list):
+            data = data.to(device)
+            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[data.mask_1_cell,:self.node_dim] = data.x[:,:self.node_dim]
+            features[data.mask_1_cell,self.node_dim:] = encoding[i,:]
+        y_pred = self.gnn(features, G_test.edge_index.to(device), G_test.edge_attr.float().to(device)).squeeze()
+        G_test['pr_cl'][:, data_list[0].time_idx] = torch.where(y_pred > 0.5, 1.0, 0.0).cpu()
+        return G_test
 
 class Regressor_edges_test(Regressor_edges):
 
     def __init__(self):
         super().__init__()
-    
+
     def forward(self, X_batch, data_list, G_test, device):
+        encoding = self._forward_encoder(X_batch, data_list, G_test, device)
+        G_test = self._forward_gnn(encoding, data_list, device)
+        return
+
+    def _forward_encoder(self, X_batch, data_list, G_test, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -857,7 +888,9 @@ class Regressor_edges_test(Regressor_edges):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
+        return encoding
 
+    def _forward_gnn(self, encoding, data_list, device):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
@@ -868,14 +901,35 @@ class Regressor_edges_test(Regressor_edges):
         data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_subgraph", "idx_list", "idx_list_mapped"]).to(device) 
         data_batch['x'] = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         data_batch.x = torch.expm1(data_batch.x)
-
         data_list = data_batch.to_data_list()        
         
         for data in data_list:
             y_pred_i = data.x.squeeze().cpu()
             G_test['pr_reg'][data.mask_1_cell, data.time_idx] = torch.where(y_pred_i >= 0.1, y_pred_i, torch.tensor(0.0, dtype=y_pred_i.dtype)) 
+        return G_test
+
+
+class Regressor_edges_test_large(Regressor_edges_test):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X_batch, data_list, G_test, device):
+        encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
+        G_test = self._forward_gnn(encoding, data_list, device, G_test)
         return
 
+    def _forward_gnn(self, encoding, data_list, device, G_test):
+        features = torch.zeros((G_test.num_nodes), self.node_dim + encoding.shape[1]).to(device)
+        for i, data in enumerate(data_list):
+            data = data.to(device)
+            #features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
+            features[data.mask_1_cell,:self.node_dim] = data.x[:,:self.node_dim]
+            features[data.mask_1_cell,self.node_dim:] = encoding[i,:]
+        y_pred = self.gnn(features, G_test.edge_index.to(device), G_test.edge_attr.float().to(device)).squeeze()
+        y_pred = torch.expm1(y_pred).cpu()
+        G_test['pr_reg'][:, data.time_idx] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype))
+        return G_test
 
 if __name__ =='__main__':
 
