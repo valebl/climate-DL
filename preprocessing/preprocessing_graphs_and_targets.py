@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/climate-DL/preprocessing/')
 parser.add_argument('--log_file', type=str, default='log_ae.txt')
 parser.add_argument('--input_path', type=str, default='/m100_work/ICT23_ESP_C/SHARED/')
-parser.add_argument('--target_file', type=str, default='GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
+parser.add_argument('--target_file', type=str, default='ALP3_pr/italy_pr.nc')#'GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
 parser.add_argument('--topo_file', type=str, default='TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
 parser.add_argument('--plot_name', type=str, default='graph.png')
 
@@ -29,7 +29,6 @@ parser.add_argument('--lon_max', type=float, default=14.25)
 parser.add_argument('--lat_min', type=float, default=43.50)
 parser.add_argument('--lat_max', type=float, default=47.50)
 parser.add_argument('--interval', type=float, default=0.25)
-parser.add_argument('--time_dim', type=float, default=140256)
 parser.add_argument('--offset_9_cells', type=float, default=0.25)
 parser.add_argument('--make_plots', action='store_true', default=False)
 
@@ -39,14 +38,13 @@ parser.add_argument('--use_precomputed_stats', action='store_true', default=True
 parser.add_argument('--precomputed_stats_file', type=str, default='TOPO/z_stats_italy.pkl')
 parser.add_argument('--idx_time_path', type=str, default='')
 
-def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
+def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr):
     '''
     Derives a new version of the longitude, latitude and precipitation
     tensors, by only retaining the values inside the specified lon-lat rectangle
     Arguments:
         lon_min, lon_max, lat_min, lat_max: integers
         lon, lat, z, pr: tensors
-        time_dim: an integet
     Returns:
         The new tensors with the selected values
 
@@ -56,7 +54,7 @@ def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr, time_dim):
     bool_both = np.logical_and(bool_lon, bool_lat)
     lon_sel = lon[bool_both]
     lat_sel = lat[bool_both]
-    z_sel = z[bool_both]
+    z_sel = z#[bool_both]
     pr_sel = np.array(pr[:,bool_both])
     return lon_sel, lat_sel, z_sel, pr_sel
 
@@ -190,7 +188,7 @@ if __name__ == '__main__':
     write_log("\nCutting the window...", args)
 
     # cut gripho and topo to the desired window
-    lon_sel, lat_sel, z_sel, pr_sel = cut_window(args.lon_min, args.lon_max, args.lat_min, args.lat_max, lon, lat, z, pr, args.time_dim)
+    lon_sel, lat_sel, z_sel, pr_sel = cut_window(args.lon_min, args.lon_max, args.lat_min, args.lat_max, lon, lat, z, pr)
     n_nodes = pr_sel.shape[1]
 
     write_log(f"\nDone! Window is [{lon_sel.min()}, {lon_sel.max()}] x [{lat_sel.min()}, {lat_sel.max()}] with {n_nodes} nodes.", args)
@@ -244,9 +242,20 @@ if __name__ == '__main__':
 
     lon_sel = lon_sel[mask_graph_cells_space]
     lat_sel = lat_sel[mask_graph_cells_space]
-    z_sel = z_sel[mask_graph_cells_space]
+    #z_sel = z_sel[mask_graph_cells_space]
     pr_sel = pr_sel[:, mask_graph_cells_space] # (time, num_nodes)
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
+
+    ###############################################################
+    pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
+    with open(args.output_path + "pr_sel.pkl", 'wb') as f:
+        pickle.dump(pr_sel, f)
+    with open(args.output_path + "lon_sel.pkl", 'wb') as f:
+        pickle.dump(lon_sel, f)
+    with open(args.output_path + "lat_sel.pkl", 'wb') as f:
+        pickle.dump(lat_sel, f)
+    sys.exit()
+    ###############################################################
 
     n_nodes = cell_idx_array.shape[0]
     
@@ -384,8 +393,6 @@ if __name__ == '__main__':
     ## write some files
     with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_test, f)
-
-    sys.exit()
 
     with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)
