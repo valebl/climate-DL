@@ -52,7 +52,7 @@ fi
 #---------#
 
 if [ ${PERFORM_PHASE_2} = true ] ; then
-	python3 ${PHASE_2_PATH} --input_path=${INPUT_PATH_PHASE_2} --output_path=${OUTPUT_PATH} --log_file=${LOG_FILE} --lon_min=${LON_MIN} --lon_max=${LON_MAX} --lat_min=${LAT_MIN} --lat_max=${LAT_MAX} --interval=${INTERVAL} --time_dim=${TIME_DIM} --suffix=${SUFFIX_PHASE_2} --idx_time_path=${IDX_TIME_PATH} --make_plots --precomputed_stats_file=${PRECOMPUTED_STATS_FILE} --use_precomputed_stats
+	python3 ${PHASE_2_PATH} --input_path=${INPUT_PATH_PHASE_2} --output_path=${OUTPUT_PATH} --log_file=${LOG_FILE} --lon_min=${LON_MIN} --lon_max=${LON_MAX} --lat_min=${LAT_MIN} --lat_max=${LAT_MAX} --interval=${INTERVAL} --suffix=${SUFFIX_PHASE_2} --idx_time_path=${IDX_TIME_PATH} --make_plots --precomputed_stats_file=${PRECOMPUTED_STATS_FILE} --use_precomputed_stats
 fi
 EOT
 
