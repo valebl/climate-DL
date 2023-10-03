@@ -137,16 +137,16 @@ class Trainer(object):
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
 
-    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.9, gamma=2):
+    def _train_epoch_cl(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, alpha=0.9, gamma=2, G_train=None):
         loss_meter = AverageMeter()
         performance_meter = AverageMeter()
         acc_class1_meter = AverageMeter()
         start = time.time()
         step = 0
-        device = 'cuda' if accelerator is None else accelerator.device
+        #device = 'cuda' if accelerator is None else accelerator.device
         for X, data in dataloader:
             optimizer.zero_grad()
-            y_pred, y = model(X, data, device)
+            y_pred, y = model(X, data, device, G_train=G_train)
             #loss = loss_fn(y_pred, y)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
@@ -179,21 +179,25 @@ class Trainer(object):
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}; "+
                     f"performance: {performance_meter.avg:.4f}.")
 
-    def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler):
+    def _train_epoch_reg(self, epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, G_train=None):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0 
-        device = 'cuda' if accelerator is None else accelerator.device
-        for X, data in dataloader:
+        #device = 'cuda' if accelerator is None else accelerator.device
+        #for X, data in dataloader:
+        for data in dataloader:
             optimizer.zero_grad()
             #y_pred, y = model(X, data, device)
             #loss = loss_fn(y_pred, y)
-            y_pred, y, w = model(X, data, device)
+            y_pred, y, w = model(data)
+            assert not torch.any(torch.isnan(y_pred))
+            assert not torch.any(torch.isnan(y))
+            assert not torch.any(torch.isnan(w))
             loss = loss_fn(y_pred, y, w)
             accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
-            loss_meter.update(val=loss.item(), n=X.shape[0])    
+            loss_meter.update(val=loss.item(), n=data.train_nodes.sum())#X.shape[0])    
             #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'step':step})
                 #'lr': lr_scheduler.get_last_lr()[0]}) #, 'grad_max':grad_max})
@@ -201,7 +205,7 @@ class Trainer(object):
             #lr_scheduler.step()
             step += 1
             if accelerator.is_main_process:
-                if step % 5000 == 0:
+                if step % 500 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -216,15 +220,17 @@ class Trainer(object):
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write(f"\nEpoch {epoch+1} completed in {end - start:.4f} seconds. Loss - total: {loss_meter.sum:.4f} - average: {loss_meter.avg:.10f}. ")
     
-    def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=0):
+    def train(self, model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=0, G_train=None):
         model.train()
         epoch_type = 'reg' if 'reg' in args.model_type else args.model_type
         train_epoch = getattr(self, f"_train_epoch_{epoch_type}")
+        device = 'cuda' if accelerator is None else accelerator.device
+        G_train = G_train.to(device)
         for epoch in range(epoch_start, epoch_start+args.epochs):
             if accelerator.is_main_process:
                 with open(args.output_path+args.log_file, 'a') as f:
                     f.write(f"\nEpoch {epoch+1} --- learning rate {optimizer.param_groups[0]['lr']:.8f}")
-            train_epoch(epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler)
+            train_epoch(epoch, model, dataloader, optimizer, loss_fn, accelerator, args, lr_scheduler, G_train=G_train)
             if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
                 lr_scheduler.step()
             if accelerator.is_main_process:
@@ -254,5 +260,4 @@ class Tester(object):
                 step += 1 
         G_test["pr"] = G_test.pr_cl * G_test.pr_reg 
         return
-
 

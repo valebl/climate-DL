@@ -80,139 +80,6 @@ class Autoencoder(nn.Module):
         return out
 
 
-#class Classifier(nn.Module):
-#    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=1):
-#        super().__init__()
-#        self.cnn_output_dim = cnn_output_dim
-#        self.gru_hidden_dim = gru_hidden_dim
-#        self.gnn_node_dim = gru_hidden_dim * 25 + num_node_features
-#
-#        self.encoder = nn.Sequential(
-#            nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(64),
-#            nn.ReLU(),
-#            nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(64),
-#            nn.ReLU(),
-#            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
-#            nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(256),
-#            nn.ReLU(),
-#            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
-#            nn.Flatten(),
-#            nn.Linear(2048, 512),
-#            nn.BatchNorm1d(512),
-#            nn.ReLU(),
-#            nn.Linear(512, cnn_output_dim),
-#            nn.BatchNorm1d(cnn_output_dim),
-#            nn.ReLU()
-#            )
-#
-#        # define the decoder modules
-#        self.gru = nn.Sequential(
-#            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
-#        )
-#
-#        #gnn
-#        self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-#            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
-#            (GATv2Conv(self.gnn_node_dim, self.gnn_node_dim, aggr='mean', dropout=0.6, edge_dim=1), 'x, edge_index, edge_attr -> x'), 
-#            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
-#            nn.ReLU(),                                                     
-#            (GATv2Conv(self.gnn_node_dim, self.gnn_node_dim, aggr='mean', dropout=0.6, edge_dim=1), 'x, edge_index, edge_attr -> x'),
-#            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
-#            nn.ReLU(),
-#            #(GATv2Conv(self.gnn_node_dim, 2, aggr='mean'), 'x, edge_index -> x'), # weighted cross entropy
-#            #nn.Softmax(dim=-1)                                      # weighted cross entropy
-#            (GATv2Conv(self.gnn_node_dim, 1, aggr='mean', edge_dim=1), 'x, edge_index, edge_attr -> x'), # focal loss
-#            nn.Sigmoid()                                            # focal loss
-#            ])
-#        
-#    def forward(self, X_batch, data_list):
-#        s = X_batch.shape
-#        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
-#        X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
-#        X_batch = X_batch.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
-#        encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
-#        encoding = encoding.reshape(s[0], s[1]*self.gru_hidden_dim)         # (batch_dim, 25*gru_hidden_dim)
-#
-#        for i, data in enumerate(data_list):
-#            data['x'] = torch.zeros((data.num_nodes, 1 + encoding.shape[1])).cuda()
-#            data['x'][:,1] = data.z.squeeze()
-#            data['x'][:,1:] = encoding[i,:]
-#
-#        data_batch = Batch.from_data_list(data_list)                                                    
-#        
-#        y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
-#        train_mask = data_batch.train_mask
-#
-#        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]       # focal loss       
-#        #return y_pred[train_mask].squeeze(), data_batch.y[train_mask].squeeze().to(torch.long)  # weighted cross entropy loss
-#
-#class Regressor(nn.Module):
-#    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3):
-#        super().__init__()
-#        self.cnn_output_dim = cnn_output_dim
-#        self.gru_hidden_dim = gru_hidden_dim
-#        self.gnn_node_dim = gru_hidden_dim * 25 + num_node_features
-#
-#        self.encoder = nn.Sequential(
-#            nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(64),
-#            nn.ReLU(),
-#            nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(64),
-#            nn.ReLU(),
-#            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
-#            nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
-#            nn.BatchNorm3d(256),
-#            nn.ReLU(),
-#            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
-#            nn.Flatten(),
-#            nn.Linear(2048, 512),
-#            nn.BatchNorm1d(512),
-#            nn.ReLU(),
-#            nn.Linear(512, cnn_output_dim),
-#            nn.BatchNorm1d(cnn_output_dim),
-#            nn.ReLU()
-#            )
-#
-#        self.gru = nn.Sequential(
-#            nn.GRU(cnn_output_dim, gru_hidden_dim, n_layers, batch_first=True),
-#        )
-#
-#        self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-#            (geometric_nn.BatchNorm(self.gnn_node_dim), 'x -> x'),
-#            (GATv2Conv(self.gnn_node_dim, 128, heads=2, aggr='mean', dropout=0.6),  'x, edge_index, edge_attr -> x'), 
-#            (geometric_nn.BatchNorm(256), 'x -> x'),
-#            nn.ReLU(),                                                     
-#            (GATv2Conv(256, 128, aggr='mean', dropout=0.6), 'x, edge_index, edge_attr-> x'),
-#            (geometric_nn.BatchNorm(128), 'x -> x'),
-#            nn.ReLU(),
-#            (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index, edge_attr -> x'),
-#            ])
-#        
-#    def forward(self, X_batch, data_list):
-#        s = X_batch.shape
-#        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
-#        X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
-#        X_batch = X_batch.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
-#        encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
-#        encoding = encoding.reshape(s[0], s[1]*self.gru_hidden_dim)         # (batch_dim, 25*gru_hidden_dim)
-#        for i, data in enumerate(data_list):
-#            data['x'] = torch.zeros((data.num_nodes, 3 + encoding.shape[1])).cuda()
-#            data['x'][:,:3] = data.z.squeeze()
-#            data['x'][:,3:] = encoding[i,:]       
-#
-#        data_batch = Batch.from_data_list(data_list, exclude_keys=["z", "low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped"]) 
-#        
-#        y_pred = self.gnn(data_batch.x, data_batch.edge_index)    
-#        #y_pred = self.linear(y_pred)
-#        train_mask = data_batch.train_mask
-#        return y_pred[train_mask].squeeze(), data_batch.y[train_mask]       # focal loss
-#    #return y_pred, data_batch.y.squeeze().to(torch.long), data_batch.batch  # weighted cross entropy loss
-
-
 class Classifier_old(nn.Module):
     def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3, input_dim=256, hidden_dim=256):
         super().__init__()
@@ -524,8 +391,13 @@ class Classifier_edges(nn.Module):
             (GATv2Conv(128, 1, aggr='mean', edge_dim=edge_attr_dim), 'x, edge_index, edge_attr -> x'),
             nn.Sigmoid()
             ])
-    
-    def forward(self, X_batch, data_batch, device):
+
+    def forward(self, X_batch, data_list, device, G_train=None):
+        encoding = self._forward_encoding(X_batch, device)
+        y_pred, y = self._forward_gnn(encoding, data_list, device)
+        return y_pred, y
+
+    def _forward_encoding(self, X_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -533,8 +405,10 @@ class Classifier_edges(nn.Module):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
+        return encoding
 
-        for i, data in enumerate(data_batch):
+    def _forward_gnn(self, encoding, data_list, device):
+        for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
             features[:,:self.node_dim] = data.x[:,:self.node_dim]
@@ -544,10 +418,10 @@ class Classifier_edges(nn.Module):
             #features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float()) 
         train_mask = data_batch.train_mask
-        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()     
+        return y_pred.squeeze()[train_mask], data_batch.y.squeeze()
 
 
 class Regressor_edges(nn.Module):
@@ -594,7 +468,12 @@ class Regressor_edges(nn.Module):
             (GATv2Conv(128, 1, aggr='mean', edge_dim=edge_attr_dim), 'x, edge_index, edge_attr -> x'),
             ])
 
-    def forward(self, X_batch, data_batch, device):
+    def forward(self, X_batch, data_list, device):
+        encoding = self._forward_encoding(X_batch, device)
+        y_pred, y, w = self._forward_gnn(encoding, data_list, device)
+        return y_pred, y, w
+
+    def _forward_encoding(self, X_batch, device):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -602,8 +481,10 @@ class Regressor_edges(nn.Module):
         encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
         encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
+        return encoding
 
-        for i, data in enumerate(data_batch):
+    def _forward_gnn(self, encoding, data_list, device):
+        for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
             features[:,:self.node_dim] = data.x[:,:self.node_dim]
@@ -614,10 +495,42 @@ class Regressor_edges(nn.Module):
             #features[:,3:] = encoding[i,:]
             data.__setitem__('x', features)
             
-        data_batch = Batch.from_data_list(data_batch, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
         y_pred = self.gnn(data_batch.x, data_batch.edge_index, data_batch.edge_attr.float())
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze(), data_batch.w.squeeze()
+
+class Regressor_edges_large(Regressor_edges):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, graph):
+        encoding = self._forward_encoding(graph.input)
+        y_pred, y, w = self._forward_gnn(encoding, graph)
+        return y_pred, y, w
+
+    def _forward_encoding(self, X_batch):
+        s = X_batch.shape
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
+        encoding = self.dense(encoding)
+        return encoding
+    
+    def _forward_gnn(self, encoding, graph):
+        for i, space_idx in enumerate(graph.valid_examples_space_gnn):
+            mask = graph.mask_1_cell_subgraphs[space_idx]
+            graph.features[mask,:self.node_dim] = graph.x[mask,:self.node_dim]
+            graph.features[mask,self.node_dim:] = encoding[i,:]
+        y_pred = self.gnn(graph.features, graph.edge_index, graph.edge_attr.float())
+        #data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
+        #print("train_mask:",data_batch.train_mask.shape, "train_nodes:",G_train.train_nodes.shape, "y_pred:",y_pred.squeeze().shape, "y:",data_batch.y.squeeze().shape, "w:",data_batch.w.squeeze().shape)
+        #sys.exit()
+        mask_train_nodes = (graph.train_mask * graph.train_nodes).bool()
+        return y_pred.squeeze()[mask_train_nodes], graph.y[mask_train_nodes], graph.w[mask_train_nodes]
 
 
 #----------------------------------------------
@@ -818,7 +731,7 @@ class Classifier_edges_test(Classifier_edges):
 
     def forward(self, X_batch, data_list, G_test, device):
         encoding = self._forward_encoder(X_batch, data_list, G_test, device)
-        G_test = self._forward_gnn(encoding, data_list, device)
+        G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
     def _forward_encoder(self, X_batch, data_list, G_test, device):
@@ -831,7 +744,7 @@ class Classifier_edges_test(Classifier_edges):
         encoding = self.dense(encoding)
         return encoding
 
-    def _forward_gnn(self, encoding, data_list, device):
+    def _forward_gnn(self, encoding, data_list, G_test, device):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
@@ -856,10 +769,10 @@ class Classifier_edges_test_large(Classifier_edges_test):
 
     def forward(self, X_batch, data_list, G_test, device):
         encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
-        G_test = self._forward_gnn(encoding, data_list, device, G_test)
+        G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_gnn(self, encoding, data_list, device, G_test):
+    def _forward_gnn(self, encoding, data_list, G_test, device):
         features = torch.zeros((G_test.num_nodes), self.node_dim + encoding.shape[1]).to(device)   
         for i, data in enumerate(data_list):
             data = data.to(device)
@@ -877,7 +790,7 @@ class Regressor_edges_test(Regressor_edges):
 
     def forward(self, X_batch, data_list, G_test, device):
         encoding = self._forward_encoder(X_batch, data_list, G_test, device)
-        G_test = self._forward_gnn(encoding, data_list, device)
+        G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
     def _forward_encoder(self, X_batch, data_list, G_test, device):
@@ -890,7 +803,7 @@ class Regressor_edges_test(Regressor_edges):
         encoding = self.dense(encoding)
         return encoding
 
-    def _forward_gnn(self, encoding, data_list, device):
+    def _forward_gnn(self, encoding, data_list, G_test, device):
         for i, data in enumerate(data_list):
             data = data.to(device)
             features = torch.zeros((data.num_nodes, self.node_dim + encoding.shape[1])).to(device)
@@ -916,10 +829,10 @@ class Regressor_edges_test_large(Regressor_edges_test):
 
     def forward(self, X_batch, data_list, G_test, device):
         encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
-        G_test = self._forward_gnn(encoding, data_list, device, G_test)
+        G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_gnn(self, encoding, data_list, device, G_test):
+    def _forward_gnn(self, encoding, data_list, G_test, device):
         features = torch.zeros((G_test.num_nodes), self.node_dim + encoding.shape[1]).to(device)
         for i, data in enumerate(data_list):
             data = data.to(device)
