@@ -12,7 +12,7 @@ sys.path.append("/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single")
 import models
 import dataset
 from utils import load_encoder_checkpoint as load_checkpoint, Tester
-from utils_predictions import create_zones, plot_maps, date_to_day
+from utils_predictions import create_zones, plot_maps, date_to_day, extremes_cmap
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -22,8 +22,8 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
-parser.add_argument('--idx_time_file', type=str, default="idx_time_test.pkl")
+#parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
+#parser.add_argument('--idx_time_file', type=str, default="idx_time_test.pkl")
 parser.add_argument('--graph_file_test', type=str) 
 parser.add_argument('--subgraphs', type=str) 
 parser.add_argument('--checkpoint_cl', type=str)
@@ -50,6 +50,7 @@ parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
 parser.add_argument('--idx_min', type=int, default=130728)
 parser.add_argument('--img_extension', type=str, default='pdf')
 
+parser.add_argument('--first_year', type=int, default=None)
 parser.add_argument('--year_start', type=int, default=None)
 parser.add_argument('--month_start', type=int, default=None)
 parser.add_argument('--day_start', type=int, default=None)
@@ -57,6 +58,7 @@ parser.add_argument('--year_end', type=int, default=None)
 parser.add_argument('--month_end', type=int, default=None)
 parser.add_argument('--day_end', type=int, default=None)
 parser.add_argument('--device', type=str, default='cuda')
+parser.add_argument('--cmap', type=str, default='turbo')
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
@@ -73,7 +75,7 @@ if __name__ == '__main__':
 
     #LAT_DIM = 7 # number of points in the GRIPHO rectangle (0.25 grid)
     #LON_DIM = 7
-    TIME_DIM = 140256
+    #TIME_DIM = 140256
     spatial_points_dim = args.lat_dim * args.lon_dim
 
     #with open(args.input_path + args.idx_file, 'rb') as f:
@@ -85,8 +87,18 @@ if __name__ == '__main__':
     with open(args.input_path + args.graph_file_test, 'rb') as f:
         G_test = pickle.load(f)
 
-    start_idx, end_idx = date_to_day(args.year_start, args.month_start, args.day_start, args.year_end, args.month_end, args.day_end)
+    start_idx, end_idx = date_to_day(args.year_start, args.month_start, args.day_start, args.year_end, args.month_end, args.day_end, first_year=args.first_year)
+    start_idx = max(start_idx,25)
     idx_to_key_time = list(range(start_idx, end_idx))
+
+    if not args.large_graph:
+        idx_to_key = []
+        for time_idx in idx_to_key_time:
+            for space_idx in G_test.valid_examples_space:
+                k = time_idx * spatial_points_dim + space_idx
+                idx_to_key.append(k)
+    else:
+        idx_to_key=None
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write(f"\nTest idxs from {start_idx} to {end_idx}")
@@ -113,7 +125,7 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, time_min=min(idx_to_key_time), time_max=140255, idx_to_key_time=idx_to_key_time) #time_min=113951, time_max=140255)
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, idx_to_key_time=idx_to_key_time, idx_to_key=idx_to_key)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
@@ -168,9 +180,15 @@ if __name__ == '__main__':
 #----------------------- PLOTS -----------------------
 #-----------------------------------------------------
 
+    if args.cmap == 'extremes':
+        cmap = extremes_cmap()
+    else:
+        cmap = 'turbo'
+
     x_size = args.lon_dim
     y_size = args.lat_dim
-    font_size = int(12 / 7 * x_size)
+    font_size = 42 #int(12 / 7 * x_size)
+    font_size_title = 60 #int(20 / 7 * x_size)
 
     if args.make_plots:        
         with open(args.output_path + args.log_file, 'a') as f:
@@ -189,21 +207,23 @@ if __name__ == '__main__':
         with open(args.output_path + args.log_file, 'a') as f:
             f.write(f"\nClassifier\nAccuracy: {acc:.2f}\nAccuracy on class 0: {acc_0:.2f}\nAccuracy on class 1: {acc_1:.2f}")
         
-        plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_target_cl, pr_min=0.1, aggr=np.nansum,
-            title=f"Classifier - Number of hours with pr>=0.1mm for the year {args.test_year}", idx_start=0, idx_end=-1, legend_title="hours",
-            save_path=args.output_path, save_file_name=f"maps_cl_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
+        plot_maps(G_test.pos[mask,:], G_test.pr_cl.numpy()[mask,:], y_target_cl, pr_min=0.1, aggr=np.nansum, cmap=cmap, pr_max=75,
+            title=f"Classifier - Number of hours with pr>=0.1mm (from {args.day_start}/{args.month_start}/{args.year_start} to {args.day_end}/{args.month_end}/{args.year_end})",
+            idx_start=0, idx_end=-1, legend_title="hours", save_path=args.output_path, save_file_name=f"maps_cl.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size,
+            font_size=font_size, font_size_title=font_size_title)
         # Regressor
         pr_mask = G_test.y.numpy()[mask,:] >= 0.1
-        plot_maps(G_test.pos[mask,:], G_test.pr_reg.numpy()[mask,:] * pr_mask, y_target * pr_mask, pr_min=0.1, aggr=np.nansum,
-            title=f"Regressor - Cumulative precipitation when pr>=0.1 in observations for the year {args.test_year}", idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_reg_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
+        plot_maps(G_test.pos[mask,:], G_test.pr_reg.numpy()[mask,:] * pr_mask, y_target * pr_mask, pr_min=0.1, aggr=np.nansum, cmap=cmap, pr_max=350,
+            title=f"Regressor - Cumulative precipitation when pr>=0.1 in observations (from {args.day_start}/{args.month_start}/{args.year_start} to {args.day_end}/{args.month_end}/{args.year_end})",
+            idx_start=0, idx_end=-1, save_path=args.output_path, save_file_name=f"maps_reg.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size,
+            font_size=font_size, font_size_title=font_size_title)
         # Combines results
-        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.1, aggr=np.nansum,
-            title=f"Cumulative precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_cumulative_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
-        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.0, aggr=np.nanmean,
-            title=f"Mean precipitation for the year {args.test_year}", idx_start=0, idx_end=-1,
-            save_path=args.output_path, save_file_name=f"maps_mean_{args.test_year}.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size)
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.1, aggr=np.nansum, cmap=cmap, pr_max=350,
+            title=f"Cumulative precipitation (from {args.day_start}/{args.month_start}/{args.year_start} to {args.day_end}/{args.month_end}/{args.year_end})", idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_cumulative.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size, font_size_title=font_size_title)
+        plot_maps(G_test.pos[mask,:], G_test.pr.numpy()[mask,:], y_target, pr_min=0.0, aggr=np.nanmean, cmap=cmap, pr_max=5,
+            title=f"Mean precipitation (from {args.day_start}/{args.month_start}/{args.year_start} to {args.day_end}/{args.month_end}/{args.year_end})", idx_start=0, idx_end=-1,
+            save_path=args.output_path, save_file_name=f"maps_mean.{args.img_extension}", zones=zones, x_size=x_size, y_size=y_size, font_size=font_size, font_size_title=font_size_title)
         # Histogram
         plt.rcParams.update({'font.size': 16})
         y = G_test.y.numpy()[mask,:].flatten()
