@@ -397,7 +397,7 @@ class Classifier_edges(nn.Module):
         y_pred, y = self._forward_gnn(encoding, data_list, device)
         return y_pred, y
 
-    def _forward_encoding(self, X_batch, device):
+    def _forward_encoding(self, X_batch):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -500,6 +500,36 @@ class Regressor_edges(nn.Module):
         train_mask = data_batch.train_mask
         return y_pred.squeeze()[train_mask], data_batch.y.squeeze(), data_batch.w.squeeze()
 
+
+class Classifier_edges_large(Classifier_edges):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, graph):
+        encoding = self._forward_encoding(graph.input)
+        y_pred, y = self._forward_gnn(encoding, graph)
+        return y_pred, y
+
+    def _forward_encoding(self, X_batch):
+        s = X_batch.shape
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
+        encoding = self.dense(encoding)
+        return encoding
+
+    def _forward_gnn(self, encoding, graph):
+        for i, space_idx in enumerate(graph.valid_examples_space_gnn):
+            mask = graph.mask_1_cell_subgraphs[space_idx]
+            graph.features[mask,:self.node_dim] = graph.x[mask,:self.node_dim]
+            graph.features[mask,self.node_dim:] = encoding[i,:]
+        y_pred = self.gnn(graph.features, graph.edge_index, graph.edge_attr.float())
+        mask_train_nodes = (graph.train_mask * graph.train_nodes).bool()
+        return y_pred.squeeze()[mask_train_nodes], graph.y[mask_train_nodes]
+
 class Regressor_edges_large(Regressor_edges):
 
     def __init__(self):
@@ -526,9 +556,6 @@ class Regressor_edges_large(Regressor_edges):
             graph.features[mask,:self.node_dim] = graph.x[mask,:self.node_dim]
             graph.features[mask,self.node_dim:] = encoding[i,:]
         y_pred = self.gnn(graph.features, graph.edge_index, graph.edge_attr.float())
-        #data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"]) 
-        #print("train_mask:",data_batch.train_mask.shape, "train_nodes:",G_train.train_nodes.shape, "y_pred:",y_pred.squeeze().shape, "y:",data_batch.y.squeeze().shape, "w:",data_batch.w.squeeze().shape)
-        #sys.exit()
         mask_train_nodes = (graph.train_mask * graph.train_nodes).bool()
         return y_pred.squeeze()[mask_train_nodes], graph.y[mask_train_nodes], graph.w[mask_train_nodes]
 

@@ -144,26 +144,29 @@ class Trainer(object):
         start = time.time()
         step = 0
         #device = 'cuda' if accelerator is None else accelerator.device
-        for X, data in dataloader:
+        for data in dataloader:
             optimizer.zero_grad()
-            y_pred, y = model(X, data, device, G_train=G_train)
+            train_points = (data.train_mask * data.train_nodes).bool()
+            if train_points.sum() <= 0:
+                continue
+            y_pred, y = model(data)
             #loss = loss_fn(y_pred, y)
             loss = loss_fn(y_pred, y, alpha, gamma, reduction='mean')
             accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
-            loss_meter.update(val=loss.item(), n=X.shape[0])    
+            loss_meter.update(val=loss.item(), n=y_pred.shape[0])    
             performance = accuracy_binary_one(y_pred, y)
             acc_class1 = accuracy_binary_one_class1(y_pred, y)
-            performance_meter.update(val=performance, n=X.shape[0])
-            acc_class1_meter.update(val=acc_class1, n=X.shape[0])
+            performance_meter.update(val=performance, n=y_pred.shape[0])
+            acc_class1_meter.update(val=acc_class1, n=y_pred.shape[0])
             #if lr_scheduler is not None and lr_scheduler.get_last_lr()[0] > 0.000001:
             #   lr_scheduler.step()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'accuracy iteration': performance_meter.val, 'loss avg': loss_meter.avg,
                 'accuracy avg': performance_meter.avg, 'accuracy class1 avg': acc_class1_meter.avg, 'lr': lr_scheduler.get_last_lr()[0], 'step':step})
             step += 1
             if accelerator.is_main_process:
-                if step % 5000 == 0:
+                if step % 500 == 0:
                     checkpoint_dict = {
                         "parameters": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -189,15 +192,24 @@ class Trainer(object):
             optimizer.zero_grad()
             #y_pred, y = model(X, data, device)
             #loss = loss_fn(y_pred, y)
+            train_points = (data.train_mask * data.train_nodes).bool()
+            if train_points.sum() <= 0:
+                continue
             y_pred, y, w = model(data)
-            assert not torch.any(torch.isnan(y_pred))
-            assert not torch.any(torch.isnan(y))
-            assert not torch.any(torch.isnan(w))
+            #print('y_pred: ', len(y_pred), 'y: ', len(y), 'w: ', len(w), train_points.sum(), '\n')
             loss = loss_fn(y_pred, y, w)
+            #if torch.isnan(loss):
+            #with open(args.output_path+"y_pred.pkl", 'wb') as f:
+            #        pickle.dump(y_pred.cpu(), f)
+            #    with open(args.output_path+"y.pkl", 'wb') as f:
+            #        pickle.dump(y.cpu(), f)
+            #    with open(args.output_path+"w.pkl", 'wb') as f:
+            #        pickle.dump(w.cpu(), f)
+            #    sys.exit()
             accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             optimizer.step()
-            loss_meter.update(val=loss.item(), n=data.train_nodes.sum())#X.shape[0])    
+            loss_meter.update(val=loss.item(), n=y_pred.shape[0])#X.shape[0])    
             #grad_max = torch.max(torch.abs(torch.cat([param.grad.view(-1) for param in model.parameters()]))).item()
             accelerator.log({'epoch':epoch, 'loss iteration': loss_meter.val, 'loss avg': loss_meter.avg, 'step':step})
                 #'lr': lr_scheduler.get_last_lr()[0]}) #, 'grad_max':grad_max})
