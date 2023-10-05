@@ -8,7 +8,7 @@ from torch.utils.data._utils.collate import default_convert
 
 import time
 
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Batch
 
 class Dataset_pr(Dataset):
 
@@ -233,7 +233,8 @@ def custom_collate_fn_gnn(batch):
     return input, data
 
 def custom_collate_fn_gnn_large(batch):
-    return batch[0]
+    #batch = Batch.from_data_list(graphs_list)
+    return batch
 
 def custom_collate_fn_gnn_test_large(batch):
     input = torch.stack([item[0] for item in batch[0]])

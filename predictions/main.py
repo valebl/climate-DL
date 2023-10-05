@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
     if args.large_graph:
         dataset_type = 'Dataset_pr_test_large'
-        custom_collate_type = 'custom_collate_fn_gnn_large'
+        custom_collate_type = 'custom_collate_fn_gnn_test_large'
     else:
         dataset_type = 'Dataset_pr_test'
         custom_collate_type = 'custom_collate_fn_gnn'
