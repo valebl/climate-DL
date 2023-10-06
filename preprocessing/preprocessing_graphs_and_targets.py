@@ -58,7 +58,9 @@ def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr):
     pr_sel = np.array(pr[:,bool_both])
     return lon_sel, lat_sel, z_sel, pr_sel
 
-def select_nodes(lon_centre, lat_centre, lon, lat, pr, cell_idx, cell_idx_array, mask_1_cell_subgraphs, mask_9_cells_subgraphs, offset=0.25, offset_9=0.25):
+def select_nodes(lon_centre, lat_centre, lon, lat, pr, z, cell_idx, cell_idx_array, mask_1_cell_subgraphs, #mask_9_cells_subgraphs,
+        lon_lat_z_graph, pr_graph, count_points, progressive_idx, offset=0.25, offset_9=0.25):
+    
     '''
     Creates the single cell data structure, by only retaining the values
     correspondent to the nodes that fall inside the considered cell, which
@@ -76,20 +78,27 @@ def select_nodes(lon_centre, lat_centre, lon, lat, pr, cell_idx, cell_idx_array,
     bool_lon = np.logical_and(lon >= lon_centre, lon <= lon_centre+offset)
     bool_lat = np.logical_and(lat >= lat_centre, lat <= lat_centre+offset)
     bool_both = np.logical_and(bool_lon, bool_lat)
-    bool_lon_9 = np.logical_and(lon >= lon_centre - offset_9, lon <= lon_centre + offset + offset_9)
-    bool_lat_9 = np.logical_and(lat >= lat_centre - offset_9, lat <= lat_centre + offset + offset_9)
-    bool_both_9 = np.logical_and(bool_lon_9, bool_lat_9)
-    bool_both_9 = np.logical_or(bool_both, bool_both_9)
+    #bool_lon_9 = np.logical_and(lon >= lon_centre - offset_9, lon <= lon_centre + offset + offset_9)
+    #bool_lat_9 = np.logical_and(lat >= lat_centre - offset_9, lat <= lat_centre + offset + offset_9)
+    #bool_both_9 = np.logical_and(bool_lon_9, bool_lat_9)
+    #bool_both_9 = np.logical_or(bool_both, bool_both_9)
+    progressive_idx_end = progressive_idx + bool_both.sum()
+    lon_lat_z_graph[0,progressive_idx:progressive_idx_end] = lon[bool_both]
+    lon_lat_z_graph[1,progressive_idx:progressive_idx_end] = lat[bool_both]
+    lon_lat_z_graph[2,progressive_idx:progressive_idx_end] = z[bool_both]
+    pr_graph[:,progressive_idx:progressive_idx_end] = pr[:,bool_both]
+    cell_idx_array[progressive_idx:progressive_idx_end] = cell_idx
+    bool_both = cell_idx_array == cell_idx
     mask_1_cell_subgraphs[cell_idx, :] = bool_both
-    mask_9_cells_subgraphs[cell_idx, :] = bool_both_9
-    cell_idx_array[bool_both] = cell_idx
+    count_points.append([cell_idx, bool_both.sum()])
+    #mask_9_cells_subgraphs[cell_idx, :] = bool_both_9
     flag_valid_example = False
-    for i in np.argwhere(bool_both):
-        if np.all(np.isnan(pr[:,i])):
+    for i in torch.argwhere(bool_both):
+        if np.all(torch.isnan(pr_graph[:,i])):
             cell_idx_array[i] *= -1
         else:
             flag_valid_example = True
-    return cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs
+    return cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, lon_lat_z_graph, pr_graph, count_points, progressive_idx_end #mask_9_cells_subgraphs,
 
 def write_log(s, args, mode='a'):
     with open(args.output_path + args.log_file, mode) as f:
@@ -198,8 +207,8 @@ if __name__ == '__main__':
     #-----------------------------------------------------
 
     cell_idx_array = np.zeros(n_nodes) # will contain the mapping of each node to the corresponding low_res cell idx
-    mask_1_cell_subgraphs = np.zeros((space_low_res_dim, n_nodes)).astype(bool)     # maps each low_res_cell idx to the corresponding 9 cell mask
-    mask_9_cells_subgraphs = np.zeros((space_low_res_dim,n_nodes)).astype(bool)     # maps each low_res_cell idx to the corresponding 9 cells mask
+    mask_1_cell_subgraphs = np.zeros((space_low_res_dim, n_nodes)).astype(bool)     # maps each low_res_cell idx to the corresponding 1 cell mask
+    #mask_9_cells_subgraphs = np.zeros((space_low_res_dim,n_nodes)).astype(bool)     # maps each low_res_cell idx to the corresponding 9 cells mask
     graph_cells_space = []
 
     valid_examples_space = [ii * lon_low_res_dim + jj for ii in range(1,lat_low_res_dim-1) for jj in range(1,lon_low_res_dim-1)]
@@ -208,21 +217,36 @@ if __name__ == '__main__':
     write_log(f"\nStarting the preprocessing.", args)
     start = time.time()
 
+    lon_lat_z_graph = torch.zeros((3, n_nodes))
+    pr_graph = torch.zeros(pr_sel.shape)
+    count_points = []
+    progressive_idx = 0
+
     for i, lat_low_res in enumerate(lat_low_res_array):
         for j, lon_low_res in enumerate(lon_low_res_array):
             cell_idx = i * lon_low_res_dim + j
-            cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, mask_9_cells_subgraphs = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, pr_sel, cell_idx,
-                    cell_idx_array, mask_1_cell_subgraphs, mask_9_cells_subgraphs, offset=args.interval, offset_9=args.offset_9_cells)         
+            cell_idx_array, flag_valid_example, mask_1_cell_subgraphs, lon_lat_pr_z_graph, count_points, progressive_idx = select_nodes(lon_low_res, lat_low_res, lon_sel, lat_sel, 
+                    pr_sel, z_sel, cell_idx, cell_idx_array, mask_1_cell_subgraphs, lon_lat_z_graph, pr_graph, count_points, progressive_idx, offset=args.interval, offset_9=args.offset_9_cells)         
             if cell_idx in valid_examples_space:
                 if flag_valid_example:
                     idx_list = np.array([ii * lon_low_res_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)])
                     _ = [graph_cells_space.append(abs(d)) for d in idx_list]
                 else:
                     valid_examples_space.remove(cell_idx)
-    
-    graph_cells_space = list(set(graph_cells_space))
+
+    graph_cells_space = list(set(graph_cells_space)) # cells used in gnn message passing
     graph_cells_space.sort()
     valid_examples_space.sort()
+
+    #valid_examples_space_gnn = []
+    #for i in range(lat_low_res_dim):
+    #    for j in range(lon_low_res_dim):
+    #        space_idx = i * lon_dim + j
+    #        if space_idx in valid_examples_space:
+    #            idx_list = [ii * lon_dim + jj for ii in range(i-1,i+2) for jj in range(j-1,j+2)]
+    #            _ = [valid_examples_space_gnn.append(idx) for idx in idx_list]
+    #valid_examples_space_gnn = list(set(valid_examples_space_gnn))
+    #valid_examples_space_gnn.sort()
 
     end = time.time()
     write_log(f'\nLoop took {end - start} s', args)
@@ -231,19 +255,21 @@ if __name__ == '__main__':
     mask_graph_cells_space = np.in1d(abs(cell_idx_array), graph_cells_space)
     mask_1_cell_subgraphs = mask_1_cell_subgraphs[:,mask_graph_cells_space]
     mask_1_cell_subgraphs = torch.tensor(mask_1_cell_subgraphs)
-    mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
-    mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
-    
+    #mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
+    #mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
+
+    train_nodes = np.in1d(abs(cell_idx_array), valid_examples_space)
+
     idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
     idx_test = np.array(idx_test)
    
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train if s in valid_examples_space]
     idx_train_ae = np.array(idx_train_ae)
 
-    lon_sel = lon_sel[mask_graph_cells_space]
-    lat_sel = lat_sel[mask_graph_cells_space]
-    #z_sel = z_sel[mask_graph_cells_space]
-    pr_sel = pr_sel[:, mask_graph_cells_space] # (time, num_nodes)
+    lon_sel = lon_lat_z_graph[0, mask_graph_cells_space]
+    lat_sel = lon_lat_z_graph[1, mask_graph_cells_space]
+    z_sel = lon_lat_z_graph[2, mask_graph_cells_space]
+    pr_sel = pr_graph[:, mask_graph_cells_space] # (time, num_nodes)
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
 
     ###############################################################
@@ -263,8 +289,8 @@ if __name__ == '__main__':
     with open(args.output_path + 'mask_1_cell_subgraphs' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(mask_1_cell_subgraphs, f)
     
-    with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
-        pickle.dump(mask_9_cells_subgraphs, f)
+    #with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
+    #    pickle.dump(mask_9_cells_subgraphs, f)
    
     with open(args.output_path + 'idx_test.pkl', 'wb') as f:
         pickle.dump(idx_test, f)
@@ -389,6 +415,9 @@ if __name__ == '__main__':
             edge_attr=torch.tensor(edge_attr_cat), x=torch.tensor(z_sel_s).unsqueeze_(1))
     G_train = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(z_sel_s).unsqueeze_(1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
             low_res=torch.tensor(abs(cell_idx_array)).int())
+    G_large = Data(num_nodes=z_sel_s.shape[0], x=torch.tensor(z_sel_s).unsqueeze_(1), edge_index=torch.tensor(edge_index), edge_attr=torch.tensor(edge_attr_cat),
+            low_res=torch.tensor(abs(cell_idx_array)).int(), train_nodes=torch.tensor(train_nodes), valid_examples_space_gnn=torch.tensor(graph_cells_space),
+            mask_1_cell_subgraphs=mask_1_cell_subgraphs)
 
     ## write some files
     with open(args.output_path + 'G_test' + args.suffix + '.pkl', 'wb') as f:
@@ -396,6 +425,9 @@ if __name__ == '__main__':
 
     with open(args.output_path + 'G_train' + args.suffix + '.pkl', 'wb') as f:
         pickle.dump(G_train, f)
+    
+    with open(args.output_path + 'G_large' + args.suffix + '.pkl', 'wb') as f:
+        pickle.dump(G_large, f)
     
     with open(args.output_path + 'target_train_cl.pkl', 'wb') as f:
         pickle.dump(torch.tensor(pr_sel_train_cl), f)    

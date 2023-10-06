@@ -188,14 +188,14 @@ class Trainer(object):
         step = 0 
         #device = 'cuda' if accelerator is None else accelerator.device
         #for X, data in dataloader:
-        for data in dataloader:
+        for input, data in dataloader:
             optimizer.zero_grad()
             #y_pred, y = model(X, data, device)
             #loss = loss_fn(y_pred, y)
-            train_points = (data.train_mask * data.train_nodes).bool()
-            if train_points.sum() <= 0:
+            #train_points = (data.train_mask * data.train_nodes).bool()
+            y_pred, y, w = model(input, data)
+            if len(y_pred) == 0:
                 continue
-            y_pred, y, w = model(data)
             #print('y_pred: ', len(y_pred), 'y: ', len(y), 'w: ', len(w), train_points.sum(), '\n')
             loss = loss_fn(y_pred, y, w)
             #if torch.isnan(loss):

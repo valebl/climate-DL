@@ -425,11 +425,13 @@ class Classifier_edges(nn.Module):
 
 
 class Regressor_edges(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
+    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3, input_dim=256,
+            hidden_dim=256, node_dim=1, edge_attr_dim=1, encoding_dim=512):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
         self.edge_attr_dim = edge_attr_dim
+        self.encoding_dim = encoding_dim
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
@@ -454,12 +456,12 @@ class Regressor_edges(nn.Module):
             nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
             )
         self.dense = nn.Sequential(
-            nn.Linear(hidden_dim*25, 512),
+            nn.Linear(hidden_dim*25, encoding_dim),
             nn.ReLU()
             )
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(node_dim+512), 'x -> x'),
-            (GATv2Conv(node_dim+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=edge_attr_dim),  'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(node_dim+encoding_dim), 'x -> x'),
+            (GATv2Conv(node_dim+encoding_dim, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=edge_attr_dim),  'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
             (GATv2Conv(256, 128, aggr='mean', edge_dim=edge_attr_dim), 'x, edge_index, edge_attr -> x'),
@@ -535,29 +537,34 @@ class Regressor_edges_large(Regressor_edges):
     def __init__(self):
         super().__init__()
 
-    def forward(self, graph):
-        encoding = self._forward_encoding(graph.input)
-        y_pred, y, w = self._forward_gnn(encoding, graph)
+    def forward(self, X_batch, data_list):
+        encoding = self._forward_encoding(X_batch)
+        y_pred, y, w = self._forward_gnn(encoding, data_list)
         return y_pred, y, w
 
     def _forward_encoding(self, X_batch):
         s = X_batch.shape
-        X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
-        X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
-        X_batch = X_batch.reshape(s[0], s[1], self.cnn_output_dim)          # (batch_dim, 25, cnn_output_dim)
-        encoding, _ = self.gru(X_batch)                                     # (batch_dim, 25, gru_hidden_dim)
-        encoding = encoding.reshape(s[0], s[1]*self.cnn_output_dim)         # (batch_dim, 25*gru_hidden_dim)
+        X_batch = X_batch.reshape(s[0]*s[1]*s[2], s[3], s[4], s[5], s[6])   # (batch_dim*low_res_dim*25, 5, 5, 6, 6)
+        X_batch = self.encoder(X_batch)                                     # (batch_dim*low_res_dim*25, cnn_output_dim)
+        X_batch = X_batch.reshape(s[0]*s[1], s[2], self.cnn_output_dim)     # (batch_dim*low_res_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X_batch)                                     # (batch_dim*low_res_dim, 25, gru_hidden_dim)
+        encoding = encoding.reshape(s[0]*s[1], s[2]*self.cnn_output_dim)         # (batch_dim*low_res_dim, 25*gru_hidden_dim)
         encoding = self.dense(encoding)
+        encoding = encoding.reshape(s[0], s[1], self.encoding_dim)
         return encoding
     
-    def _forward_gnn(self, encoding, graph):
-        for i, space_idx in enumerate(graph.valid_examples_space_gnn):
-            mask = graph.mask_1_cell_subgraphs[space_idx]
-            graph.features[mask,:self.node_dim] = graph.x[mask,:self.node_dim]
-            graph.features[mask,self.node_dim:] = encoding[i,:]
-        y_pred = self.gnn(graph.features, graph.edge_index, graph.edge_attr.float())
-        mask_train_nodes = (graph.train_mask * graph.train_nodes).bool()
-        return y_pred.squeeze()[mask_train_nodes], graph.y[mask_train_nodes], graph.w[mask_train_nodes]
+    def _forward_gnn(self, encoding, data_list):
+        spatial_graph = data_list[0]
+        for i, space_idx in enumerate(spatial_graph.valid_examples_space_gnn):
+            mask = spatial_graph.mask_1_cell_subgraphs[space_idx]
+            for graph in data_list:
+                graph.features[mask,:self.node_dim] = graph.x[mask,:self.node_dim]
+                graph.features[mask,self.node_dim:] = encoding[j,i,:]
+
+        data_batch = Batch.from_data_list(data_list, exclude_keys=["low_res", "mask_1_cell", "mask_subgraph", "idx_list", "idx_list_mapped", "laplacian_eigenvector_pe"])
+        y_pred = self.gnn(data_batch.features, data_batch.edge_index, data_batch.edge_attr.float())
+        mask_train_nodes = (data_batch.train_mask * data_batch.train_nodes).bool()
+        return y_pred.squeeze()[mask_train_nodes], data_batch.y[mask_train_nodes], data_batch.w[mask_train_nodes]
 
 
 #----------------------------------------------

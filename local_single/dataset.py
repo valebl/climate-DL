@@ -232,12 +232,19 @@ def custom_collate_fn_gnn(batch):
     input = default_convert(input)
     return input, data
 
-def custom_collate_fn_gnn_large(batch):
-    #batch = Batch.from_data_list(graphs_list)
-    return batch
+def custom_collate_fn_gnn_large(data_list):
+    input = torch.stack([g.input for g in data_list])
+    input = default_convert(input)
+    #data_batch = Batch.from_data_list(data_list)
+    return input, data_list
+
+#def custom_collate_fn_gnn_large(batch):
+#    #batch = Batch.from_data_list(graphs_list)
+#    return batch
 
 def custom_collate_fn_gnn_test_large(batch):
     input = torch.stack([item[0] for item in batch[0]])
+    input = default_convert(input)
     data = [item[1] for item in batch[0]]
     #batch = batch[0]
     #input = torch.stack([item for item in batch[0]])                        # shape = (batch_size, 25, 5, 5, 6, 6)
