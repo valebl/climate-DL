@@ -113,23 +113,27 @@ class Dataset_pr_gnn(Dataset_pr):
     
 class Dataset_pr_test(Dataset_pr):
 
-    def __init__(self, time_min, time_max, *args, **kwargs):
+    def __init__(self, idx_to_key, time_min, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.time_min = time_min
-        self.time_max = time_max
-        self.input, self.idx_to_key, self.subgraphs, self.test_graph = self._load_data_into_memory()
+        self.idx_to_key = idx_to_key
+        #self.time_max = time_max
+        self.input, self.subgraphs, self.test_graph = self._load_data_into_memory()
+        self._set_length()
+
+    def _set_length(self):
+        self.length = len(self.idx_to_key)
 
     def _load_data_into_memory(self):
         with open(self.args.input_path + self.args.input_file, 'rb') as f:
             input = pickle.load(f)
-        with open(self.args.input_path + self.args.idx_file,'rb') as f:
-            idx_to_key = pickle.load(f)   
-        with open(self.args.input_path + self.args.subgraphs, 'rb') as f:
+        #with open(self.args.input_path + self.args.idx_file,'rb') as f:
+        #    idx_to_key = pickle.load(f)   
+        with open(self.args.input_path + self.args.subgraphs_file, 'rb') as f:
             subgraphs = pickle.load(f)
-        with open(self.args.input_path + self.args.graph_file_test, 'rb') as f:
+        with open(self.args.input_path + self.args.test_graph_file, 'rb') as f:
             test_graph = pickle.load(f)
-        self.length = len(idx_to_key)
-        return input, idx_to_key, subgraphs, test_graph
+        return input, subgraphs, test_graph
 
     def __getitem__(self, idx):
         k = self.idx_to_key[idx]   
@@ -151,6 +155,9 @@ class Dataset_pr_test_large(Dataset_pr_test):
     def __init__(self, idx_to_key_time, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.idx_to_key_time = idx_to_key_time #self._load_data_into_memory_large()
+        self._set_length()
+
+    def _set_length(self):
         self.length = len(self.idx_to_key_time)
 
     def __getitem__(self, idx):
