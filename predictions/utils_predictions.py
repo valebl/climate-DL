@@ -46,7 +46,7 @@ def draw_rectangle(x_min, x_max, y_min, y_max, color, ax, fill=False, fill_color
 
 def plot_maps(pos, pr_pred, pr, zones, save_path, save_file_name, 
         x_size, y_size, font_size_title, font_size=None, pr_min=None, pr_max=None, aggr=None, title="", 
-        cmap='turbo', idx_start=0, idx_end=-1, legend_title="pr", xlim=None, ylim=None, cbar_y=1,
+        cmap='jet', idx_start=0, idx_end=-1, legend_title="pr", xlim=None, ylim=None, cbar_y=1,
         cbar_title_size=None, cbar_pad=50, subtitle_y=1):
     
     if font_size is None:
@@ -64,8 +64,8 @@ def plot_maps(pos, pr_pred, pr, zones, save_path, save_file_name,
     lon = pos[:,0]
     lat = pos[:,1]
     
-    pr_min = pr_min if pr_min is not None else min(pr_pred.min(), pr.min())
-    pr_max = pr_max if pr_max is not None else max(pr_pred.max(), pr.max())
+    pr_min = pr_min if pr_min is not None else np.nanmin(np.nanmin(pr_pred), np.nanmin(pr))
+    pr_max = pr_max if pr_max is not None else np.nanmax(np.nanmax(pr_pred), np.nanmax(pr))
 
     #v = pr_pred[:,idx_start:idx_end]
     if aggr is not None:
