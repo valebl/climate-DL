@@ -22,10 +22,8 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
-#parser.add_argument('--idx_file', type=str, default="idx_test.pkl")
-#parser.add_argument('--idx_time_file', type=str, default="idx_time_test.pkl")
-parser.add_argument('--graph_file_test', type=str) 
-parser.add_argument('--subgraphs', type=str) 
+parser.add_argument('--test_graph_file', type=str) 
+parser.add_argument('--subgraphs_file', type=str) 
 parser.add_argument('--checkpoint_cl', type=str)
 parser.add_argument('--checkpoint_reg', type=str)
 parser.add_argument('--output_file', type=str, default="G_predictions.pkl")
@@ -41,13 +39,11 @@ parser.add_argument('--large_graph',  action='store_true')
 parser.add_argument('--no-large_graph', dest='large_graph', action='store_false')
 
 #-- other
-parser.add_argument('--test_year', type=int, default=2016)
+#parser.add_argument('--test_year', type=int, default=2016)
 parser.add_argument('--batch_size', type=int, default=128, help='batch size (global)')
-parser.add_argument('--lon_dim', type=int, default=7)
-parser.add_argument('--lat_dim', type=int, default=7)
 parser.add_argument('--model_name_cl', type=str, default='Classifier_old_test')
 parser.add_argument('--model_name_reg', type=str, default='Regressor_old_test')
-parser.add_argument('--idx_min', type=int, default=130728)
+#parser.add_argument('--idx_min', type=int, default=130728)
 parser.add_argument('--img_extension', type=str, default='pdf')
 
 parser.add_argument('--first_year', type=int, default=None)
@@ -60,8 +56,15 @@ parser.add_argument('--day_end', type=int, default=None)
 parser.add_argument('--device', type=str, default='cuda')
 parser.add_argument('--cmap', type=str, default='turbo')
 
-#from torchmetrics.classification import BinaryConfusionMatrix
+parser.add_argument('--lon_min', type=float)
+parser.add_argument('--lon_max', type=float)
+parser.add_argument('--lat_min', type=float)
+parser.add_argument('--lat_max', type=float)
+parser.add_argument('--interval', type=float, default=0.25)
+parser.add_argument('--lon_dim', type=int, default=None)
+parser.add_argument('--lat_dim', type=int, default=None)
 
+#from torchmetrics.classification import BinaryConfusionMatrix
 
 if __name__ == '__main__':
 
@@ -73,17 +76,13 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'w') as f:
         f.write("Starting.")
 
-    #LAT_DIM = 7 # number of points in the GRIPHO rectangle (0.25 grid)
-    #LON_DIM = 7
-    #TIME_DIM = 140256
+    ## derive arrays corresponding to the lon/lat low resolution grid points
+    lon_low_res_array = np.arange(args.lon_min-args.interval, args.lon_max+args.interval, args.interval)
+    lat_low_res_array = np.arange(args.lat_min-args.interval, args.lat_max+args.interval, args.interval)
+    args.lon_dim = lon_low_res_array.shape[0]
+    args.lat_dim = lat_low_res_array.shape[0]
     spatial_points_dim = args.lat_dim * args.lon_dim
 
-    #with open(args.input_path + args.idx_file, 'rb') as f:
-    #    test_keys = pickle.load(f)
-    
-    #with open(args.input_path + args.idx_time_test, 'rb') as f:
-    #    idx_time_test = pickle.load(f)
-    
     with open(args.input_path + args.graph_file_test, 'rb') as f:
         G_test = pickle.load(f)
 
@@ -125,7 +124,7 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, idx_to_key_time=idx_to_key_time, idx_to_key=idx_to_key)
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, idx_to_key=idx_to_key, time_min=min(idx_to_key_time))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:
@@ -161,7 +160,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
 
     with open(args.output_path + args.log_file, 'a') as f:
-        f.write("\nStarting the test.")
+        f.write(f"\nStarting the test, from {args.day_start}/{args.month_start}/{args.year_start} to {args.day_end}/{args.month_end}/{args.year_end}.")
 
     tester = Tester()
     
