@@ -83,7 +83,7 @@ if __name__ == '__main__':
     args.lat_dim = lat_low_res_array.shape[0]
     spatial_points_dim = args.lat_dim * args.lon_dim
 
-    with open(args.input_path + args.graph_file_test, 'rb') as f:
+    with open(args.input_path + args.test_graph_file, 'rb') as f:
         G_test = pickle.load(f)
 
     start_idx, end_idx = date_to_day(args.year_start, args.month_start, args.day_start, args.year_end, args.month_end, args.day_end, first_year=args.first_year)
@@ -140,13 +140,13 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nClassifier:")
 
-    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, 
+    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl_file, args.output_path, args.log_file, None, 
             net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nRegressor:")
 
-    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None,
+    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg_file, args.output_path, args.log_file, None,
             net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
 
     model_cl = model_cl.to(args.device)
