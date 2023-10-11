@@ -247,14 +247,14 @@ if __name__ == '__main__':
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
 
     ###############################################################
-    pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
-    with open(args.output_path + "pr_sel.pkl", 'wb') as f:
-        pickle.dump(pr_sel, f)
-    with open(args.output_path + "lon_sel.pkl", 'wb') as f:
-        pickle.dump(lon_sel, f)
-    with open(args.output_path + "lat_sel.pkl", 'wb') as f:
-        pickle.dump(lat_sel, f)
-    sys.exit()
+    #pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
+    #with open(args.output_path + "pr_sel.pkl", 'wb') as f:
+    #    pickle.dump(pr_sel, f)
+    #with open(args.output_path + "lon_sel.pkl", 'wb') as f:
+    #    pickle.dump(lon_sel, f)
+    #with open(args.output_path + "lat_sel.pkl", 'wb') as f:
+    #    pickle.dump(lat_sel, f)
+    #sys.exit()
     ###############################################################
 
     n_nodes = cell_idx_array.shape[0]
