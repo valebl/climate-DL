@@ -14,7 +14,7 @@ LOG_PATH="/leonardo_work/ICT23_ESP_0/SHARED/predictions/fvg/"
 #--------------------------------------------#
 SOURCE_PATH="/leonardo/home/userexternal/vblasone/.bashrc"
 ENV_PATH="/leonardo_work/ICT23_ESP_0/env/GNNenv"
-MAIN_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/local_single/"
+MAIN_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/predictions/"
 
 #-------------------------------#
 # INPUT/OUTPUT FILES PARAMETERS #
