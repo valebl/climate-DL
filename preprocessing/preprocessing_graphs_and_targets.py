@@ -181,7 +181,7 @@ if __name__ == '__main__':
     with open(args.output_path + "idx_time_train.pkl", 'wb') as f:
         pickle.dump(idx_time_train, f)
 
-    write_log(f"\nTrain idxs from {min(idx_time_train)} to {max(idx_time_train)}.") # Test idxs from {min(idx_time_test)} to {max(idx_time_test)}.", args)
+    write_log(f"\nTrain idxs from {min(idx_time_train)} to {max(idx_time_train)}.", args) # Test idxs from {min(idx_time_test)} to {max(idx_time_test)}.", args)
     
     #-----------------------------------------------------
     #----------- CUT LON, LAT, PR, Z TO WINDOW -----------
