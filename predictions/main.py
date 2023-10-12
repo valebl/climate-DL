@@ -140,13 +140,13 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nClassifier:")
 
-    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl_file, args.output_path, args.log_file, None, 
+    checkpoint_cl = load_checkpoint(model_cl, args.checkpoint_cl, args.output_path, args.log_file, None, 
             net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nRegressor:")
 
-    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg_file, args.output_path, args.log_file, None,
+    checkpoint_reg = load_checkpoint(model_reg, args.checkpoint_reg, args.output_path, args.log_file, None,
             net_names=["encoder.", "gru.", "dense.", "gnn."], fine_tuning=False, device=args.device)
 
     model_cl = model_cl.to(args.device)
