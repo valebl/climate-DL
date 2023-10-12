@@ -39,8 +39,8 @@ parser.add_argument('--train_year_start', type=float, default=2001)
 parser.add_argument('--train_month_start', type=float, default=1)
 parser.add_argument('--train_day_start', type=float, default=1)
 parser.add_argument('--train_year_end', type=float, default=2015)
-parser.add_argument('--train_month_end', type=float, default=12)
-parser.add_argument('--train_day_end', type=float, default=31)
+parser.add_argument('--train_month_end', type=float, default=11)
+parser.add_argument('--train_day_end', type=float, default=30)
 parser.add_argument('--first_year', type=float, default=2001)
 
 #-- other
@@ -64,7 +64,7 @@ def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr):
     bool_both = np.logical_and(bool_lon, bool_lat)
     lon_sel = lon[bool_both]
     lat_sel = lat[bool_both]
-    z_sel = z#[bool_both]
+    z_sel = z[bool_both]
     pr_sel = np.array(pr[:,bool_both])
     return lon_sel, lat_sel, z_sel, pr_sel
 
@@ -430,6 +430,12 @@ if __name__ == '__main__':
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
 
+    with open(args.output_path + 'mask_train_cl.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_cl), f)
+
+    with open(args.output_path + 'mask_train_reg.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_reg), f)
+   
     c = 0
     for s in range(space_low_res_dim):
         mask_1 = np.in1d(cell_idx_array, s) # shape = (n_nodes)
@@ -459,12 +465,6 @@ if __name__ == '__main__':
     with open(args.output_path + 'idx_train_reg.pkl', 'wb') as f:
         pickle.dump(idx_train_reg, f)
     
-    with open(args.output_path + 'mask_train_cl.pkl', 'wb') as f:
-        pickle.dump(torch.tensor(mask_train_cl), f)
-
-    with open(args.output_path + 'mask_train_reg.pkl', 'wb') as f:
-        pickle.dump(torch.tensor(mask_train_reg), f)
-   
     #-----------------------------------------------------
     #--------------------- SUBGRAPHS ---------------------
     #-----------------------------------------------------
