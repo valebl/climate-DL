@@ -122,7 +122,7 @@ def derive_train_time_indexes(args):
     #idx_time_train.sort(); idx_time_test.sort()
     #for i in range(24):
     #    idx_time_train.remove(i)
-    return idx_time_train, None
+    return idx_time_train
 
 if __name__ == '__main__':
 
