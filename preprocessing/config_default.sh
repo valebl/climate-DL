@@ -34,7 +34,6 @@ STATS_PATH="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/italy/"
 MEANS_FILE="means.pkl"
 STDS_FILE="stds.pkl"
 
-IDX_TIME_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/idx_time_2001-2016.pkl"
 SUFFIX_PHASE_2=""
 PRECOMPUTED_STATS_FILE="TOPO/z_stats_italy.pkl"
 
