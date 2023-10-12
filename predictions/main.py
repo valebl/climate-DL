@@ -74,7 +74,7 @@ if __name__ == '__main__':
         os.makedirs(args.output_path)
 
     with open(args.output_path + args.log_file, 'w') as f:
-        f.write("Starting.")
+        f.write(f"Starting!\nBatch size is {args.batch_size}.")
 
     ## derive arrays corresponding to the lon/lat low resolution grid points
     lon_low_res_array = np.arange(args.lon_min-args.interval, args.lon_max+args.interval, args.interval)
@@ -116,7 +116,9 @@ if __name__ == '__main__':
     else:
         dataset_type = 'Dataset_pr_test'
         custom_collate_type = 'custom_collate_fn_gnn'
-
+    
+    with open(args.output_path + args.log_file, 'a') as f:
+        f.write(f"\nUsing {dataset_type} and {custom_collate_type}.")
 
     Dataset = getattr(dataset, dataset_type)
     custom_collate_fn = getattr(dataset, custom_collate_type)
@@ -129,6 +131,7 @@ if __name__ == '__main__':
 
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nDone!")
+        f.write(f"\nUsing {args.model_name_cl} and {args.model_name_reg}")
         f.write("\nInstantiate models and load checkpoints.\n")
 
     Model_cl = getattr(models, args.model_name_cl)

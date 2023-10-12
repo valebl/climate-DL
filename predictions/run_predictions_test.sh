@@ -1,16 +1,16 @@
 #!/bin/bash 
 #SBATCH -A ict23_esp_0
 #SBATCH --partition=boost_usr_prod
-#SBATCH --time 24:00:00       # format: HH:MM:SS
+#SBATCH --time 00:30:00       # format: HH:MM:SS
 #SBATCH -N 1                  # 1 node
-#SBATCH --mem=0
+#SBATCH --mem=60G
 ## SBATCH --ntasks-per-node=32   # 8 tasks out of 128
 #SBATCH --gres=gpu:1          # 1 gpus per node out of 4
 #SBATCH --job-name=ann
 ## SBATCH --mail-type=FAIL,END
 ## SBATCH --mail-user=vblasone@ictp.it
-#SBATCH -o /leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/north_italy_ann/run.out
-#SBATCH -e /leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/north_italy_ann/run.err
+#SBATCH -o /leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/extreme_2002_ERA5/large/run.out
+#SBATCH -e /leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/extreme_2002_ERA5/large/run.err
 
 source /leonardo/home/userexternal/vblasone/.bashrc
 
@@ -28,8 +28,10 @@ cd /leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/
 
 #"/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/data_fvg_preprocessed/"
 
+python main.py --input_path="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/north_italy/" --output_path="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/extreme_2002_ERA5/large/" --test_graph_file="G_test.pkl" --subgraphs="subgraphs.pkl" --checkpoint_cl="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/cl_north_italy/checkpoint_4.pth" --checkpoint_reg="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_north_italy/checkpoint_29.pth" --input_file="input_standard.pkl" --model_name_cl="Classifier_edges_test_large" --model_name_reg="Regressor_edges_test_large" --output_file="G_predictions.pkl" --log_file="log.txt" --make_plots --img_extension="jpg" --year_start=2002 --month_start=11 --day_start=22 --year_end=2002 --month_end=11 --day_end=30 --first_year=2001 --cmap='jet' --lon_min=6.75 --lon_max=14.00 --lat_min=43.75 --lat_max=47.00 --large_graph
+
 # north italy
-python main.py --input_path="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/north_italy/" --output_path="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/north_italy_ann/" --graph_file_test="G_test.pkl" --subgraphs="subgraphs.pkl" --checkpoint_cl="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_cl_ann/checkpoint_5.pth" --checkpoint_reg="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_north_italy/checkpoint_29.pth" --input_file="input_standard.pkl" --lat_dim=15 --lon_dim=31 --model_name_cl="Classifier_ann_test" --model_name_reg="Regressor_edges_test" --output_file="G_predictions.pkl" --log_file="log.txt" --make_plots --img_extension="jpg" --year_start=2016 --month_start=1 --day_start=1 --year_end=2016 --month_end=12 --day_end=31 --first_year=2001 --cmap='jet'
+#python main.py --input_path="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/north_italy/" --output_path="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/north_italy_ann/" --graph_file_test="G_test.pkl" --subgraphs="subgraphs.pkl" --checkpoint_cl="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/test_cl_ann/checkpoint_5.pth" --checkpoint_reg="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_north_italy/checkpoint_29.pth" --input_file="input_standard.pkl" --lat_dim=15 --lon_dim=31 --model_name_cl="Classifier_ann_test" --model_name_reg="Regressor_edges_test" --output_file="G_predictions.pkl" --log_file="log.txt" --make_plots --img_extension="jpg" --year_start=2016 --month_start=1 --day_start=1 --year_end=2016 --month_end=12 --day_end=31 --first_year=2001 --cmap='jet'
 
 # sicilia from north italy
 #python main.py --input_path="/leonardo_work/ICT23_ESP_0/SHARED/preprocessed/sicilia/" --output_path="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/predictions/sicilia/" --graph_file_test="G_test.pkl" --subgraphs="subgraphs.pkl" --checkpoint_cl="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/cl_north_italy/checkpoint_4.pth" --checkpoint_reg="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single/reg_north_italy/checkpoint_29.pth" --input_file="input_standard.pkl" --lon_dim=15 --lat_dim=12 --model_name_cl="Classifier_edges_test" --model_name_reg="Regressor_edges_test" --output_file="G_predictions_test.pkl" --log_file="log.txt" --make_plots --img_extension="png" --year_start=2001 --month_start=1 --day_start=1 --year_end=2016 --month_end=12 --day_end=31 --first_year=2001 --cmap='turbo' --no-large_graph
