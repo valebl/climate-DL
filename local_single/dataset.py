@@ -177,13 +177,6 @@ class Dataset_pr_test_large(Dataset_pr_test):
             batch.append([input, subgraph])
         return batch
 
-    #def _load_data_into_memory_large(self):
-    #    with open(self.args.input_path + self.args.idx_time_file,'rb') as f:
-    #        idx_to_key_time = pickle.load(f)
-    #        self.length = len(idx_to_key_time)
-    #        print(self.length)
-    #    return idx_to_key_time
-
 
 def custom_collate_fn_ae(batch):
     input = torch.stack(batch)
