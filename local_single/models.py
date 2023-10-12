@@ -438,11 +438,11 @@ class Classifier_edges_test(Classifier_edges):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = self._forward_encoder(X_batch, data_list, device)
+        encoding = self._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_encoder(self, X_batch, data_list, device):
+    def _forward_encoder(self, X_batch):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -476,7 +476,7 @@ class Classifier_edges_test_large(Classifier_edges_test):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = super()._forward_encoder(X_batch, data_list, device)
+        encoding = super()._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
@@ -497,11 +497,11 @@ class Regressor_edges_test(Regressor_edges):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = self._forward_encoder(X_batch, data_list, device)
+        encoding = self._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_encoder(self, X_batch, data_list, device):
+    def _forward_encoder(self, X_batch):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -536,7 +536,7 @@ class Regressor_edges_test_large(Regressor_edges_test):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = super()._forward_encoder(X_batch, data_list, device)
+        encoding = super()._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 

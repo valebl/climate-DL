@@ -103,6 +103,13 @@ def check_freezed_layers(model, log_path, log_file, accelerator):
             with open(log_path+log_file, 'a') as f:
                 f.write(f"\nLayer {name} requires_grad = {param.requires_grad} and has {n_param} parameters") 
 
+def date_to_idxs(year_start, month_start, day_start, year_end, month_end, day_end, first_year):
+    day_of_year_start = datetime(year_start, month_start, day_start).timetuple().tm_yday
+    day_of_year_end = datetime(year_end, month_end, day_end).timetuple().tm_yday
+    start_idx = (date(year_start, month_start, day_start) - date(first_year, 1, 1)).days * 24
+    end_idx = (date(year_end, month_end, day_end) - date(first_year, 1, 1)).days * 24 + 24
+    return start_idx, end_idx
+
 
 #-----------------------------------------------------
 #------------------ TRAIN AND TEST -------------------
