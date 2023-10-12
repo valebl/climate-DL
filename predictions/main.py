@@ -124,7 +124,7 @@ if __name__ == '__main__':
     with open(args.output_path + args.log_file, 'a') as f:
         f.write("\nBuilding the dataset and the dataloader.")
 
-    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, idx_to_key=idx_to_key, time_min=min(idx_to_key_time))
+    dataset = Dataset(args=args, lon_dim=args.lon_dim, lat_dim=args.lat_dim, idx_to_key=idx_to_key, idx_to_key_time=idx_to_key_time, time_min=min(idx_to_key_time))
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate_fn)
 
     with open(args.output_path + args.log_file, 'a') as f:

@@ -113,10 +113,11 @@ class Dataset_pr_gnn(Dataset_pr):
     
 class Dataset_pr_test(Dataset_pr):
 
-    def __init__(self, idx_to_key, time_min, *args, **kwargs):
+    def __init__(self, idx_to_key, idx_to_key_time, time_min, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.time_min = time_min
         self.idx_to_key = idx_to_key
+        self.idx_to_key_time = idx_to_key_time #self._load_data_into_memory_large()
         #self.time_max = time_max
         self.input, self.subgraphs, self.test_graph = self._load_data_into_memory()
         self._set_length()
@@ -152,9 +153,8 @@ class Dataset_pr_test(Dataset_pr):
         return input, subgraph
 
 class Dataset_pr_test_large(Dataset_pr_test):
-    def __init__(self, idx_to_key_time, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.idx_to_key_time = idx_to_key_time #self._load_data_into_memory_large()
         self._set_length()
 
     def _set_length(self):
