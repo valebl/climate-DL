@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/climate-DL/preprocessing/')
 parser.add_argument('--log_file', type=str, default='log_ae.txt')
 parser.add_argument('--input_path', type=str, default='/m100_work/ICT23_ESP_C/SHARED/')
-parser.add_argument('--target_file', type=str, default='ALP3_pr/italy_pr.nc')#'GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
+parser.add_argument('--target_file', type=str, default='GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc') #'ALP3_pr/italy_pr.nc'
 parser.add_argument('--topo_file', type=str, default='TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
 parser.add_argument('--plot_name', type=str, default='graph.png')
 
@@ -194,6 +194,8 @@ if __name__ == '__main__':
     lat = gripho.lat.to_numpy()
     pr = gripho.pr.to_numpy()
     z = topo.z.to_numpy()
+
+    write_log(f"\nlon shape {lon.shape}, lat shape {lat.shape}, pr shape {pr.shape}, z shape {z.shape}", args)
 
     write_log("\nCutting the window...", args)
 
