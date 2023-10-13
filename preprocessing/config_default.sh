@@ -50,9 +50,9 @@ LAT_MAX=46.75
 
 #--------------do not change here below------------------
 
-PHASE_1A_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/slice_and_merge_era5.sh"
-PHASE_1B_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/preprocessing_era5.py"
-PHASE_2_PATH="/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/preprocessing_graphs_and_targets.py"
+PHASE_1A_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/preprocessing/slice_and_merge_era5.sh"
+PHASE_1B_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/preprocessing/preprocessing_era5.py"
+PHASE_2_PATH="/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/preprocessing/preprocessing_graphs_and_targets.py"
 
 if [ ${LOAD_STATS} = true ] ; then
 	LOAD_STATS="--load_stats"

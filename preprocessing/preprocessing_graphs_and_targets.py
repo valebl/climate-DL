@@ -108,7 +108,7 @@ def write_log(s, args, mode='a'):
 def derive_train_time_indexes(args):
     train_start_idx, train_end_idx = date_to_idxs(args.train_year_start, args.train_month_start, args.train_day_start,
             args.train_year_end, args.train_month_end, args.train_day_end, first_year=args.first_year)
-    start_idx = max(train_start_idx,25)
+    train_start_idx = max(train_start_idx,25)
     idx_time_train = list(range(train_start_idx, train_end_idx))
     #idx_time_train = []
     #idx_time_test = []
