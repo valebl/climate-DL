@@ -254,7 +254,7 @@ if __name__ == '__main__':
 
     lon_sel = lon_sel[mask_graph_cells_space]
     lat_sel = lat_sel[mask_graph_cells_space]
-    #z_sel = z_sel[mask_graph_cells_space]
+    z_sel = z_sel[mask_graph_cells_space]
     pr_sel = pr_sel[:, mask_graph_cells_space] # (time, num_nodes)
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
 

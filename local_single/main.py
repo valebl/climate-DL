@@ -151,10 +151,24 @@ if __name__ == '__main__':
     Model = getattr(models, args.model_name)
     model = Model()
     
+
     if args.mode == 'train':
 
         if args.loss_fn == 'sigmoid_focal_loss':
             loss_fn = getattr(torchvision.ops.focal_loss, args.loss_fn)
+            # we also modify the initialization for the last layer of the gnn
+            layers = list(model.named_parameters())
+            pi=0.01
+            b=-np.log((1-pi)/pi)
+            nn.init.constant_(layers[-2][1], b) #'gnn.module_7.lin_r.bias'
+            nn.init.constant_(layers[-4][1], b) #'gnn.module_7.lin_l.bias'
+            l=0
+            std=0.01
+            nn.init.normal_(layers[-3][1], mean=l, std=std) #'gnn.module_7.lin_r.weight'
+            nn.init.normal_(layers[-5][1], mean=l, std=std) #'gnn.module_7.lin_l.weight'
+            if accelerator is None or accelerator.is_main_process:
+                with open(args.output_path+args.log_file, 'a') as f:
+                    f.write(f"\nInitialized layers {layers[-2][0]} and {layers[-4][0]} to constant and layers {layers[-3][0]} and {layers[-5][0]} to normal.")
         elif args.loss_fn == 'weighted_cross_entropy_loss':
             loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]))
         elif args.loss_fn == 'weighted_mse_loss':
