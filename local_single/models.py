@@ -81,7 +81,7 @@ class Autoencoder(nn.Module):
 
 class Autoencoder_space(nn.Module):
     def __init__(self, input_size=5, encoding_dim=128):
-        super().__init__()
+        super().__init__() 
         self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
@@ -127,9 +127,9 @@ class Autoencoder_space(nn.Module):
 
 class Encoder_space(nn.Module):
     def __init__(self, input_size=5, encoding_dim=128):
-        super().__init__()
+        super().__init__() 
         self.encoding_dim = encoding_dim
-
+        
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
