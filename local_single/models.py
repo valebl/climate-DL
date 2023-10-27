@@ -147,7 +147,7 @@ class Encoder_space(nn.Module):
             nn.ReLU()
             )
 
-
+    
     def forward(self, X):
         x = self.encoder(X)                                         # (batch_dim, encoding_dim)
         return x
