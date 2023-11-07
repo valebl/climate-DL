@@ -153,13 +153,13 @@ class Trainer(object):
         acc_class1_meter = AverageMeter()
         start = time.time()
         step = 0
-        device = 'cuda' if accelerator is None else accelerator.device
-        to_device = ToDevice(device)
+        #device = 'cuda' if accelerator is None else accelerator.device
+        #to_device = ToDevice(device)
         for graph in dataloader:
             if graph.train_mask.sum().item() == 0:
                 continue
             optimizer.zero_grad()
-            graph = to_device(graph)
+            #graph = to_device(graph)
             y_pred, y = model(graph)
             #print(dataloader.random_iter_idxs[dataloader.t], y_pred.shape, y.shape)
             #loss = loss_fn(y_pred, y)
@@ -198,15 +198,15 @@ class Trainer(object):
         loss_meter = AverageMeter()
         start = time.time()
         step = 0 
-        device = 'cuda' if accelerator is None else accelerator.device
-        to_device = ToDevice(device)
+        #device = 'cuda' if accelerator is None else accelerator.device
+        #to_device = ToDevice(device)
         for graph in dataloader:
             if graph.train_mask.sum().item() == 0:
                 continue
             optimizer.zero_grad()
             #y_pred, y = model(X, data, device)
             #loss = loss_fn(y_pred, y)
-            graph = to_device(graph)
+            #graph = to_device(graph)
             y_pred, y, w = model(graph)
             loss = loss_fn(y_pred, y, w)
             accelerator.backward(loss)
@@ -274,4 +274,23 @@ class Tester(object):
         G_test["pr"] = G_test.pr_cl * G_test.pr_reg 
         return
 
+class Tester_temporal(object):
+
+    def test(self, model_cl, model_reg, dataloader, G_test, args, accelerator=None):
+        model_cl.eval()
+        model_reg.eval()
+        step = 0
+        device = args.device if accelerator is None else accelerator.device
+        to_device = ToDevice(device)
+        with torch.no_grad():    
+            for graph in dataloader:
+                graph = to_device(graph)
+                model_cl(graph, G_test, dataloader.idx)
+                model_reg(graph, G_test, dataloader.idx)
+                if step % 100 == 0:
+                    with open(args.output_path+args.log_file, 'a') as f:
+                        f.write(f"\nStep {step} done.")
+                step += 1 
+        G_test["pr"] = G_test.pr_cl * G_test.pr_reg 
+        return
 
