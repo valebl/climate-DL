@@ -7,7 +7,8 @@ from torch_geometric.data import Batch
 import sys
 import time
 import copy
-#from torch_geometric_temporal.nn.recurrent import A3TGCN
+from torch_geometric_temporal.nn.recurrent import A3TGCN
+from torch_geometric_temporal.nn.attention import MTGNN
 from torch_geometric.nn import GCNConv
 #from .temporalgcn import TGCN
 
@@ -83,7 +84,7 @@ class Encoder_space(nn.Module):
 
 #------------------------------------    
     
-class TGCN(torch.nn.Module):
+class TGCN_mod(nn.Module):
     r"""An implementation of the Temporal Graph Convolutional Gated Recurrent Cell.
     For details see this paper: `"T-GCN: A Temporal Graph ConvolutionalNetwork for
     Traffic Prediction." <https://arxiv.org/abs/1811.05320>`_
@@ -100,53 +101,54 @@ class TGCN(torch.nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        improved: bool = False,
-        cached: bool = False,
-        add_self_loops: bool = True,
+        node_dim: int
     ):
-        super(TGCN, self).__init__()
+        super(TGCN_mod, self).__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.improved = improved
-        self.cached = cached
-        self.add_self_loops = add_self_loops
-
+        self.node_dim = node_dim
         self._create_parameters_and_layers()
 
     def _create_update_gate_parameters_and_layers(self):
 
-        self.conv_z = GCNConv(
-            in_channels=self.in_channels,
-            out_channels=self.out_channels,
-            improved=self.improved,
-            cached=self.cached,
-            add_self_loops=self.add_self_loops,
-        )
-
-        self.linear_z = torch.nn.Linear(2 * self.out_channels, self.out_channels)
+        self.conv_z = geometric_nn.Sequential('x, edge_index', [
+            (geometric_nn.BatchNorm(self.node_dim+self.in_channels), 'x -> x'),
+            (GATv2Conv(self.node_dim+self.in_channels, self.out_channels, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels*2), 'x -> x'),
+            nn.ReLU(),
+            (GATv2Conv(self.out_channels*2, self.out_channels, aggr='mean'), 'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels), 'x -> x'),
+            nn.ReLU()
+            ])
+        
+        self.linear_z = nn.Linear(2 * self.out_channels, self.out_channels)
 
     def _create_reset_gate_parameters_and_layers(self):
 
-        self.conv_r = GCNConv(
-            in_channels=self.in_channels,
-            out_channels=self.out_channels,
-            improved=self.improved,
-            cached=self.cached,
-            add_self_loops=self.add_self_loops,
-        )
+        self.conv_r = geometric_nn.Sequential('x, edge_index', [
+            (geometric_nn.BatchNorm(self.node_dim+self.in_channels), 'x -> x'),
+            (GATv2Conv(self.node_dim+self.in_channels, self.out_channels, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels*2), 'x -> x'),
+            nn.ReLU(),
+            (GATv2Conv(self.out_channels*2, self.out_channels, aggr='mean'), 'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels), 'x -> x'),
+            nn.ReLU()
+            ])
 
-        self.linear_r = torch.nn.Linear(2 * self.out_channels, self.out_channels)
+        self.linear_r = nn.Linear(2 * self.out_channels, self.out_channels)
 
     def _create_candidate_state_parameters_and_layers(self):
 
-        self.conv_h = GCNConv(
-            in_channels=self.in_channels,
-            out_channels=self.out_channels,
-            improved=self.improved,
-            cached=self.cached,
-            add_self_loops=self.add_self_loops,
-        )
+        self.conv_h = geometric_nn.Sequential('x, edge_index', [
+            (geometric_nn.BatchNorm(self.node_dim+self.in_channels), 'x -> x'),
+            (GATv2Conv(self.node_dim+self.in_channels, self.out_channels, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels*2), 'x -> x'),
+            nn.ReLU(),
+            (GATv2Conv(self.out_channels*2, self.out_channels, aggr='mean'), 'x, edge_index -> x'),
+            (geometric_nn.BatchNorm(self.out_channels), 'x -> x'),
+            nn.ReLU()
+            ])
 
         self.linear_h = torch.nn.Linear(2 * self.out_channels, self.out_channels)
 
@@ -161,19 +163,19 @@ class TGCN(torch.nn.Module):
         return H
 
     def _calculate_update_gate(self, X, edge_index, edge_weight, H):
-        Z = torch.cat([self.conv_z(X, edge_index, edge_weight), H], axis=1)
+        Z = torch.cat([self.conv_z(X, edge_index), H], axis=1)
         Z = self.linear_z(Z)
         Z = torch.sigmoid(Z)
         return Z
 
     def _calculate_reset_gate(self, X, edge_index, edge_weight, H):
-        R = torch.cat([self.conv_r(X, edge_index, edge_weight), H], axis=1)
+        R = torch.cat([self.conv_r(X, edge_index), H], axis=1)
         R = self.linear_r(R)
         R = torch.sigmoid(R)
         return R
 
     def _calculate_candidate_state(self, X, edge_index, edge_weight, H, R):
-        H_tilde = torch.cat([self.conv_h(X, edge_index, edge_weight), H * R], axis=1)
+        H_tilde = torch.cat([self.conv_h(X, edge_index), H * R], axis=1)
         H_tilde = self.linear_h(H_tilde)
         H_tilde = torch.tanh(H_tilde)
         return H_tilde
@@ -212,7 +214,7 @@ class TGCN(torch.nn.Module):
 
 #---------------------------------------------    
 
-class A3TGCN(torch.nn.Module):
+class A3TGCN_mod(nn.Module):
     r"""An implementation of the Attention Temporal Graph Convolutional Cell.
     For details see this paper: `"A3T-GCN: Attention Temporal Graph Convolutional
     Network for Traffic Forecasting." <https://arxiv.org/abs/2006.11583>`_
@@ -231,27 +233,21 @@ class A3TGCN(torch.nn.Module):
         in_channels: int,
         out_channels: int,
         periods: int,
-        improved: bool = False,
-        cached: bool = False,
-        add_self_loops: bool = True
+        node_dim: int,
     ):
-        super(A3TGCN, self).__init__()
+        super(A3TGCN_mod, self).__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.periods = periods
-        self.improved = improved
-        self.cached = cached
-        self.add_self_loops = add_self_loops
+        self.node_dim = node_dim
         self._setup_layers()
 
     def _setup_layers(self):
-        self._base_tgcn = TGCN(
+        self._base_tgcn = TGCN_mod(
             in_channels=self.in_channels,
             out_channels=self.out_channels,
-            improved=self.improved,
-            cached=self.cached,
-            add_self_loops=self.add_self_loops,
+            node_dim=self.node_dim
         )
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._attention = torch.nn.Parameter(torch.empty(self.periods, device=device))
@@ -298,9 +294,8 @@ class Classifier_temporal(nn.Module):
         self.encoding_dim = encoding_dim
         
         self.tgnn = geometric_nn.Sequential('x, edge_index', [
-            (geometric_nn.BatchNorm(node_dim+encoding_dim), 'x -> x'),
-            (A3TGCN(in_channels=node_dim+encoding_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
-            nn.ReLU(),
+            #(A3TGCN_mod(in_channels=self.encoding_dim,node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
+            (A3TGCN(in_channels=self.encoding_dim+self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             nn.Linear(64, 1),
             nn.Sigmoid()
             ])
@@ -322,10 +317,89 @@ class Regressor_temporal(nn.Module):
         self.encoding_dim = encoding_dim
         
         self.tgnn = geometric_nn.Sequential('x, edge_index', [
-            (geometric_nn.BatchNorm(node_dim+encoding_dim), 'x -> x'),
-            (A3TGCN(in_channels=node_dim+encoding_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
-            nn.ReLU(),
+            #(A3TGCN_mod(in_channels=self.encoding_dim, node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
+            (A3TGCN(in_channels=self.encoding_dim+self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             nn.Linear(64, 1),
+            ])
+    
+    def forward(self, graph):
+        y_pred, y, w = self._forward_gnn(graph)
+        return y_pred, y, w
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()[graph.train_mask], graph.y[graph.train_mask], graph.w.squeeze()[graph.train_mask]
+
+#----------------------------------------------
+#----------------------------------------------
+#----------------------------------------------
+
+# MTGNN
+ # """An implementation of the Multivariate Time Series Forecasting Graph Neural Networks.
+ #    For details see this paper: `"Connecting the Dots: Multivariate Time Series Forecasting with Graph Neural Networks."
+ #    <https://arxiv.org/pdf/2005.11650.pdf>`_
+
+ #    Args:
+ #    gcn_true (bool): Whether to add graph convolution layer.
+ #    build_adj (bool): Whether to construct adaptive adjacency matrix.
+ #    gcn_depth (int): Graph convolution depth.
+ #    num_nodes (int): Number of nodes in the graph.
+ #    kernel_set (list of int): List of kernel sizes.
+ #    kernel_size (int): Size of kernel for convolution, to calculate receptive field size.
+ #    dropout (float): Droupout rate.
+ #    subgraph_size (int): Size of subgraph.
+ #    node_dim (int): Dimension of nodes.
+ #    dilation_exponential (int): Dilation exponential.
+ #    conv_channels (int): Convolution channels.
+ #    residual_channels (int): Residual channels.
+ #    skip_channels (int): Skip channels.
+ #    end_channels (int): End channels.
+ #    seq_length (int): Length of input sequence.
+ #    in_dim (int): Input dimension.
+ #    out_dim (int): Output dimension.
+ #    layers (int): Number of layers.
+ #    propalpha (float): Prop alpha, ratio of retaining the root nodes's original states in mix-hop propagation, a value between 0 and 1.
+ #    tanhalpha (float): Tanh alpha for generating adjacency matrix, alpha controls the saturation rate.
+ #    layer_norm_affline (bool): Whether to do elementwise affine in Layer Normalization.
+ #    xd (int, optional): Static feature dimension, default None.
+ #    """
+
+class Classifier_temporal_MTGNN(nn.Module):
+    def __init__(self, static_features=1, encoding_dim=128, periods=25, num_nodes=1259, gcn_depth=3):
+        super().__init__()
+
+        self.gcn_true =True
+        self.build_adj = False
+        self.gcn_depth = gcn_depth
+        self.num_nodes = num_nodes
+        self.kernel_set = [3,3,3]
+        self.kernel_size = 10
+        self.dropout = 0.1
+        self.subgraph_size = self.num_nodes
+        self.node_dim = static_features_dim + encoding_dim
+        self.dilation_exponential = 2
+        self.conv_channels = 128
+        self.residual_channels = 128
+        self.skip_channels = 128
+        self.end_channels = 128
+        self.seq_length = 25
+        self.in_dim = 129
+        self.out_dim = 1
+        self.layers = 1
+        self.propalpha = 0.5
+        self.tanhalpha = 1
+        self.layer_norm_affline = False
+        self.xd = 1
+
+        self.tgnn = geometric_nn.Sequential('x, edge_index', [
+            (MTGNN(gcn_true=self.gcn_true, build_adj=self.build_adj, gcn_depth=self.gcn_depth, num_nodes=self.num_nodes, kernel_set=self.kernel_set,
+                   kernel_size=self.kernel_size, dropout=self.dropout, subgraph_size=self.subgraph_size, node_dim=self.node_dim, 
+                   dilation_exponential=self.dilation_exponential, conv_channels=self.conv_channels, residual_channels=self.residual_channels,
+                   skip_channels=self.skip_channels, end_channels=self.end_channels, sequ_length=self.seq_length, in_dim=self.in_dim,
+                   out_dim=self.out_dim, layers=self.layers, propalpha=self.propalpha, tanhalpha=self.tanhalpha, layer_norm_affline=self.layer_norm_affline,
+                   xd=self.xd),  'x, edge_index -> x'),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
             ])
     
     def forward(self, graph):
@@ -334,12 +408,61 @@ class Regressor_temporal(nn.Module):
     
     def _forward_gnn(self, graph):
         y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()[graph.train_mask], graph.y[graph.train_mask]
+
+
+class Regressor_temporal_MTGNN(nn.Module):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+
+        self.node_dim = node_dim
+        self.encoding_dim = encoding_dim
+        
+        self.tgnn = geometric_nn.Sequential('x, edge_index', [
+            (MTGNN(in_channels=self.encoding_dim, node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
+            nn.Linear(64, 1),
+            ])
+    
+    def forward(self, graph):
+        y_pred, y, w = self._forward_gnn(graph)
+        return y_pred, y, w
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
         return y_pred.squeeze()[graph.train_mask], graph.y[graph.train_mask], graph.w.squeeze()[graph.train_mask]
+
 
 
 #----------------------------------------------
 #---------------- test models -----------------
 #----------------------------------------------
+
+class Classifier_temporal_test(Classifier_temporal):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+    
+    def forward(self, graph, G_test, time_index):
+        y_pred = self._forward_gnn(graph)
+        G_test['pr_cl'][:,time_index] = torch.where(y_pred > 0.5, 1.0, 0.0).cpu()
+        return G_test
+
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()
+
+class Regressor_temporal_test(Regressor_temporal):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+
+    def forward(self, graph, G_test, time_index):
+        y_pred = self._forward_gnn(graph)
+        G_test['pr_reg'][:,time_index] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype)).cpu()
+        return G_test
+
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()
+
 
 if __name__ =='__main__':
 
