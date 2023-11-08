@@ -144,7 +144,7 @@ class Dataset_StaticGraphTemporalSignal(Dataset):
         additional_features = self._get_additional_features(time_index)
 
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
-                y=y, **additional_features)
+                y=y, time_index=time_index, **additional_features)
 
         return snapshot
 
