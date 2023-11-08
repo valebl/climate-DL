@@ -285,8 +285,8 @@ class Tester_temporal(object):
         with torch.no_grad():    
             for graph in dataloader:
                 graph = to_device(graph)
-                model_cl(graph, G_test, dataloader.idx)
-                model_reg(graph, G_test, dataloader.idx)
+                model_cl(graph, G_test, graph.time_index)
+                model_reg(graph, G_test, graph.time_index)
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")

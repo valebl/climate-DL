@@ -282,9 +282,9 @@ class A3TGCN_mod(nn.Module):
             )
         return H_accum
 
-#----------------------------------------------
-#-------------- edge attributes ---------------
-#----------------------------------------------
+#-------------------------------------------------------------------
+#-------------- Temporal models with standard A3TGCN ---------------
+#-------------------------------------------------------------------
 
 class Classifier_temporal(nn.Module):
     def __init__(self, node_dim=1, encoding_dim=128, periods=25):
@@ -294,7 +294,6 @@ class Classifier_temporal(nn.Module):
         self.encoding_dim = encoding_dim
         
         self.tgnn = geometric_nn.Sequential('x, edge_index', [
-            #(A3TGCN_mod(in_channels=self.encoding_dim,node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             (A3TGCN(in_channels=self.encoding_dim+self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             nn.Linear(64, 1),
             nn.Sigmoid()
@@ -317,8 +316,54 @@ class Regressor_temporal(nn.Module):
         self.encoding_dim = encoding_dim
         
         self.tgnn = geometric_nn.Sequential('x, edge_index', [
-            #(A3TGCN_mod(in_channels=self.encoding_dim, node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             (A3TGCN(in_channels=self.encoding_dim+self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
+            nn.Linear(64, 1),
+            ])
+    
+    def forward(self, graph):
+        y_pred, y, w = self._forward_gnn(graph)
+        return y_pred, y, w
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()[graph.train_mask], graph.y[graph.train_mask], graph.w.squeeze()[graph.train_mask]
+
+
+#-------------------------------------------------------------------
+#-------------- Temporal models with modified A3TGCN ---------------
+#-------------------------------------------------------------------
+
+class Classifier_temporal_mod(nn.Module):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+
+        self.node_dim = node_dim
+        self.encoding_dim = encoding_dim
+        
+        self.tgnn = geometric_nn.Sequential('x, edge_index', [
+            (A3TGCN_mod(in_channels=self.encoding_dim,node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
+            ])
+    
+    def forward(self, graph):
+        y_pred, y = self._forward_gnn(graph)
+        return y_pred, y
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred.squeeze()[graph.train_mask], graph.y[graph.train_mask]
+
+
+class Regressor_temporal_mod(nn.Module):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+
+        self.node_dim = node_dim
+        self.encoding_dim = encoding_dim
+        
+        self.tgnn = geometric_nn.Sequential('x, edge_index', [
+            (A3TGCN_mod(in_channels=self.encoding_dim, node_dim=self.node_dim, out_channels=64, periods=periods),  'x, edge_index -> x'),
             nn.Linear(64, 1),
             ])
     
@@ -437,6 +482,7 @@ class Regressor_temporal_MTGNN(nn.Module):
 #---------------- test models -----------------
 #----------------------------------------------
 
+
 class Classifier_temporal_test(Classifier_temporal):
     def __init__(self, node_dim=1, encoding_dim=128, periods=25):
         super().__init__()
@@ -450,6 +496,7 @@ class Classifier_temporal_test(Classifier_temporal):
         y_pred = self.tgnn(graph.x, graph.edge_index)
         return y_pred.squeeze()
 
+
 class Regressor_temporal_test(Regressor_temporal):
     def __init__(self, node_dim=1, encoding_dim=128, periods=25):
         super().__init__()
@@ -462,6 +509,34 @@ class Regressor_temporal_test(Regressor_temporal):
     def _forward_gnn(self, graph):
         y_pred = self.tgnn(graph.x, graph.edge_index)
         return y_pred.squeeze()
+
+
+class Classifier_temporal_test_mod(Classifier_temporal_mod):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+    
+    def forward(self, graph, G_test, time_index):
+        y_pred = self._forward_gnn(graph)
+        G_test['pr_cl'][:,time_index] = torch.where(y_pred > 0.5, 1.0, 0.0).cpu()
+        return G_test
+
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred
+
+
+class Regressor_temporal_test_mod(Regressor_temporal_mod):
+    def __init__(self, node_dim=1, encoding_dim=128, periods=25):
+        super().__init__()
+
+    def forward(self, graph, G_test, time_index):
+        y_pred = self._forward_gnn(graph)
+        G_test['pr_reg'][:,time_index] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype)).cpu()
+        return G_test
+
+    def _forward_gnn(self, graph):
+        y_pred = self.tgnn(graph.x, graph.edge_index)
+        return y_pred
 
 
 if __name__ =='__main__':
