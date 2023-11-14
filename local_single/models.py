@@ -9,7 +9,7 @@ import time
 import copy
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=512, n_layers=2):
+    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=128, n_layers=2):
         super().__init__() 
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
@@ -81,7 +81,7 @@ class Autoencoder(nn.Module):
 
 class Autoencoder_space(nn.Module):
     def __init__(self, input_size=5, encoding_dim=128):
-        super().__init__()
+        super().__init__() 
         self.encoding_dim = encoding_dim
 
         self.encoder = nn.Sequential(
@@ -106,18 +106,18 @@ class Autoencoder_space(nn.Module):
             )
 
         self.decoder = nn.Sequential(
-           nn.Linear(encoding_dim, 2048),
-           nn.Unflatten(-1,(256, 2, 2, 2)),
-           nn.Upsample(size=(3,4,4)),
-           nn.ReLU(),
-           nn.ConvTranspose3d(256, 64, kernel_size=3, padding=(1,1,1), stride=1),
-           nn.ReLU(),
-           nn.Upsample(size=(5,6,6)),
-           nn.ReLU(),
-           nn.ConvTranspose3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
-           nn.ReLU(),
-           nn.ConvTranspose3d(64, 5, kernel_size=3, padding=(1,1,1), stride=1),
-           )
+            nn.Linear(encoding_dim, 2048),
+            nn.Unflatten(-1,(256, 2, 2, 2)),
+            nn.Upsample(size=(3,4,4)),
+            nn.ReLU(),
+            nn.ConvTranspose3d(256, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.ReLU(),
+            nn.Upsample(size=(5,6,6)),
+            nn.ReLU(),
+            nn.ConvTranspose3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.ReLU(),
+            nn.ConvTranspose3d(64, 5, kernel_size=3, padding=(1,1,1), stride=1),
+            )
 
     def forward(self, X):
         x = self.encoder(X)                                         # (batch_dim, encoding_dim)
@@ -127,9 +127,9 @@ class Autoencoder_space(nn.Module):
 
 class Encoder_space(nn.Module):
     def __init__(self, input_size=5, encoding_dim=128):
-        super().__init__()
+        super().__init__() 
         self.encoding_dim = encoding_dim
-
+        
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
@@ -147,11 +147,11 @@ class Encoder_space(nn.Module):
             nn.ReLU()
             )
 
-
+    
     def forward(self, X):
         x = self.encoder(X)                                         # (batch_dim, encoding_dim)
         return x
-            
+      
 
 #----------------------------------------------
 #-------- no lat lon in node features ---------
@@ -293,7 +293,7 @@ class Regressor_z_only(nn.Module):
 #----------------------------------------------
 
 class Classifier_edges(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
+    def __init__(self, input_size=5, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
@@ -324,7 +324,7 @@ class Classifier_edges(nn.Module):
         self.dense = nn.Sequential(
             nn.Linear(hidden_dim*25, 512),
             nn.ReLU()
-            )
+            ) 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
             (geometric_nn.BatchNorm(node_dim+512), 'x -> x'),
             (GATv2Conv(node_dim+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=edge_attr_dim),  'x, edge_index, edge_attr -> x'),
@@ -370,8 +370,7 @@ class Classifier_edges(nn.Module):
 
 
 class Regressor_edges(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, num_node_features=3, input_dim=256,
-            hidden_dim=256, node_dim=1, edge_attr_dim=1, encoding_dim=512):
+def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
@@ -591,11 +590,11 @@ class Classifier_edges_test(Classifier_edges):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = self._forward_encoder(X_batch, data_list, G_test, device)
+        encoding = self._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_encoder(self, X_batch, data_list, G_test, device):
+    def _forward_encoder(self, X_batch):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -629,7 +628,7 @@ class Classifier_edges_test_large(Classifier_edges_test):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
+        encoding = super()._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
@@ -650,11 +649,11 @@ class Regressor_edges_test(Regressor_edges):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = self._forward_encoder(X_batch, data_list, G_test, device)
+        encoding = self._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
-    def _forward_encoder(self, X_batch, data_list, G_test, device):
+    def _forward_encoder(self, X_batch):
         s = X_batch.shape
         X_batch = X_batch.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])        # (batch_dim*25, 5, 5, 6, 6)
         X_batch = self.encoder(X_batch)                                     # (batch_dim*25, cnn_output_dim)
@@ -689,7 +688,7 @@ class Regressor_edges_test_large(Regressor_edges_test):
         super().__init__()
 
     def forward(self, X_batch, data_list, G_test, device):
-        encoding = super()._forward_encoder(X_batch, data_list, G_test, device)
+        encoding = super()._forward_encoder(X_batch)
         G_test = self._forward_gnn(encoding, data_list, G_test, device)
         return
 
@@ -705,6 +704,54 @@ class Regressor_edges_test_large(Regressor_edges_test):
         G_test['pr_reg'][:, data.time_idx] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype))
         return G_test
 
+class Encoder(nn.Module):
+    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=128, n_layers=2):
+        super().__init__() 
+        self.cnn_output_dim = cnn_output_dim
+        self.gru_hidden_dim = gru_hidden_dim
+        self.encoding_dim = encoding_dim
+
+        self.encoder = nn.Sequential(
+            nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
+            nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
+            nn.Flatten(),
+            nn.Linear(2048, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, cnn_output_dim),
+            nn.BatchNorm1d(cnn_output_dim),
+            nn.ReLU()
+            )
+
+        # define the decoder modules
+        self.gru = nn.Sequential(
+            nn.GRU(gru_input_dim, gru_hidden_dim, n_layers, batch_first=True),
+        )
+
+        self.dense = nn.Sequential(
+            nn.Linear(gru_hidden_dim*25, encoding_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, X):
+        s = X.shape
+        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])                # (batch_dim*25, 5, 5, 6, 6)
+        X = self.encoder(X)                                             # (batch_dim*25, cnn_output_dim)
+        X = X.reshape(s[0], s[1], self.cnn_output_dim)                  # (batch_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X) # out, h                              # (batch_dim, 25, gru_hidden_dim
+        encoding = encoding.reshape(s[0], s[1]*self.gru_hidden_dim)     # (batch_dim, 25*gru_hidden_dim)
+        encoding = self.dense(encoding)                                 # (batch_dim, encoding_dim)
+        return encoding
+
 if __name__ =='__main__':
 
     model = Regressor()
@@ -714,6 +761,4 @@ if __name__ =='__main__':
     start = time.time()
     X = model(input_batch)
     print(f"{time.time()-start} s\n")
-    print(X.shape) 
-
-
+    print(X.shape)

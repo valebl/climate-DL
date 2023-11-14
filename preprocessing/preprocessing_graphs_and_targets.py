@@ -8,6 +8,9 @@ import torch
 import os
 import matplotlib.pyplot as plt
 
+sys.path.append("/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single")
+
+from utils import date_to_idxs
 from torch_geometric.data import Data
 from utils_preprocessing import create_zones, plot_italy
 import torch_geometric.transforms as T
@@ -19,7 +22,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument('--output_path', type=str, default='/m100_work/ICT23_ESP_C/vblasone/climate-DL/preprocessing/')
 parser.add_argument('--log_file', type=str, default='log_ae.txt')
 parser.add_argument('--input_path', type=str, default='/m100_work/ICT23_ESP_C/SHARED/')
-parser.add_argument('--target_file', type=str, default='ALP3_pr/italy_pr.nc')#'GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc')
+parser.add_argument('--target_file', type=str, default='GRIPHO/gripho-v1_1h_TSmin30pct_2001-2016_cut.nc') #'ALP3_pr/italy_pr.nc'
 parser.add_argument('--topo_file', type=str, default='TOPO/GMTED_DEM_30s_remapdis_GRIPHO.nc')
 parser.add_argument('--plot_name', type=str, default='graph.png')
 
@@ -32,11 +35,18 @@ parser.add_argument('--interval', type=float, default=0.25)
 parser.add_argument('--offset_9_cells', type=float, default=0.25)
 parser.add_argument('--make_plots', action='store_true', default=False)
 
+parser.add_argument('--train_year_start', type=float, default=2001)
+parser.add_argument('--train_month_start', type=float, default=1)
+parser.add_argument('--train_day_start', type=float, default=1)
+parser.add_argument('--train_year_end', type=float, default=2015)
+parser.add_argument('--train_month_end', type=float, default=11)
+parser.add_argument('--train_day_end', type=float, default=30)
+parser.add_argument('--first_year', type=float, default=2001)
+
 #-- other
 parser.add_argument('--suffix', type=str, default='')
 parser.add_argument('--use_precomputed_stats', action='store_true', default=True)
 parser.add_argument('--precomputed_stats_file', type=str, default='TOPO/z_stats_italy.pkl')
-parser.add_argument('--idx_time_path', type=str, default='')
 
 def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr):
     '''
@@ -54,7 +64,7 @@ def cut_window(lon_min, lon_max, lat_min, lat_max, lon, lat, z, pr):
     bool_both = np.logical_and(bool_lon, bool_lat)
     lon_sel = lon[bool_both]
     lat_sel = lat[bool_both]
-    z_sel = z#[bool_both]
+    z_sel = z[bool_both]
     pr_sel = np.array(pr[:,bool_both])
     return lon_sel, lat_sel, z_sel, pr_sel
 
@@ -104,21 +114,24 @@ def write_log(s, args, mode='a'):
     with open(args.output_path + args.log_file, mode) as f:
         f.write(s)
 
-def subdivide_train_test_time_indexes(idx_time_years, first_test_year=2016, end_year=2016):
-    idx_time_train = []
-    idx_time_test = []
-    idx_first_test_year = first_test_year-2000-1
-    for idx_time_y in idx_time_years[:idx_first_test_year-1]:
-        idx_time_train += idx_time_y
-    idx_time_train += idx_time_years[idx_first_test_year-1][:-31*24]
-    idx_time_test = idx_time_years[idx_first_test_year-1][-31*24:]
-    for y in range(first_test_year, end_year + 1): 
-        idx_time_test += idx_time_years[y-2000-1]
-    idx_time_train.sort(); idx_time_test.sort()
-    for i in range(24):
-        idx_time_train.remove(i)
-    return idx_time_train, idx_time_test
-
+def derive_train_time_indexes(args):
+    train_start_idx, train_end_idx = date_to_idxs(args.train_year_start, args.train_month_start, args.train_day_start,
+            args.train_year_end, args.train_month_end, args.train_day_end, first_year=args.first_year)
+    train_start_idx = max(train_start_idx,25)
+    idx_time_train = list(range(train_start_idx, train_end_idx))
+    #idx_time_train = []
+    #idx_time_test = []
+    #idx_first_test_year = first_test_year-2000-1
+    #for idx_time_y in idx_time_years[:idx_first_test_year-1]:
+    #    idx_time_train += idx_time_y
+    #idx_time_train += idx_time_years[idx_first_test_year-1][:-31*24]
+    #idx_time_test = idx_time_years[idx_first_test_year-1][-31*24:]
+    #for y in range(first_test_year, end_year + 1): 
+    #    idx_time_test += idx_time_years[y-2000-1]
+    #idx_time_train.sort(); idx_time_test.sort()
+    #for i in range(24):
+    #    idx_time_train.remove(i)
+    return idx_time_train
 
 if __name__ == '__main__':
 
@@ -168,19 +181,16 @@ if __name__ == '__main__':
     #------------------- TIME INDEXES --------------------
     #-----------------------------------------------------
 
-    with open(args.idx_time_path, 'rb') as f:
-        idx_time_years = pickle.load(f)
-
-    idx_time_train, idx_time_test = subdivide_train_test_time_indexes(idx_time_years)
+    idx_time_train = derive_train_time_indexes(args)
     time_train_dim = len(range(min(idx_time_train), max(idx_time_train)+1))
 
-    with open(args.output_path + "idx_time_test.pkl", 'wb') as f:
-        pickle.dump(idx_time_test, f)
+    #with open(args.output_path + "idx_time_test.pkl", 'wb') as f:
+    #    pickle.dump(idx_time_test, f)
 
     with open(args.output_path + "idx_time_train.pkl", 'wb') as f:
         pickle.dump(idx_time_train, f)
 
-    write_log(f"\nTrain idxs from {min(idx_time_train)} to {max(idx_time_train)}. Test idxs from {min(idx_time_test)} to {max(idx_time_test)}.", args)
+    write_log(f"\nTrain idxs from {min(idx_time_train)} to {max(idx_time_train)}.", args) # Test idxs from {min(idx_time_test)} to {max(idx_time_test)}.", args)
     
     #-----------------------------------------------------
     #----------- CUT LON, LAT, PR, Z TO WINDOW -----------
@@ -193,6 +203,8 @@ if __name__ == '__main__':
     lat = gripho.lat.to_numpy()
     pr = gripho.pr.to_numpy()
     z = topo.z.to_numpy()
+
+    write_log(f"\nlon shape {lon.shape}, lat shape {lat.shape}, pr shape {pr.shape}, z shape {z.shape}", args)
 
     write_log("\nCutting the window...", args)
 
@@ -255,32 +267,34 @@ if __name__ == '__main__':
     mask_graph_cells_space = np.in1d(abs(cell_idx_array), graph_cells_space)
     mask_1_cell_subgraphs = mask_1_cell_subgraphs[:,mask_graph_cells_space]
     mask_1_cell_subgraphs = torch.tensor(mask_1_cell_subgraphs)
+
+    #train_nodes = np.in1d(abs(cell_idx_array), valid_examples_space)
+
     #mask_9_cells_subgraphs = mask_9_cells_subgraphs[:,mask_graph_cells_space]
     #mask_9_cells_subgraphs = torch.tensor(mask_9_cells_subgraphs)
-
-    train_nodes = np.in1d(abs(cell_idx_array), valid_examples_space)
-
-    idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
-    idx_test = np.array(idx_test)
+    
+    #idx_test = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_test if s in valid_examples_space]
+    #idx_test = np.array(idx_test)
    
     idx_train_ae = [t * space_low_res_dim + s for s in range(space_low_res_dim) for t in idx_time_train if s in valid_examples_space]
     idx_train_ae = np.array(idx_train_ae)
 
-    lon_sel = lon_lat_z_graph[0, mask_graph_cells_space]
-    lat_sel = lon_lat_z_graph[1, mask_graph_cells_space]
-    z_sel = lon_lat_z_graph[2, mask_graph_cells_space]
-    pr_sel = pr_graph[:, mask_graph_cells_space] # (time, num_nodes)
+    lon_sel = lon_sel[mask_graph_cells_space]
+    lat_sel = lat_sel[mask_graph_cells_space]
+    z_sel = z_sel[mask_graph_cells_space]
+    pr_sel = pr_sel[:, mask_graph_cells_space] # (time, num_nodes)
+
     cell_idx_array = cell_idx_array[mask_graph_cells_space]
 
     ###############################################################
-    pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
-    with open(args.output_path + "pr_sel.pkl", 'wb') as f:
-        pickle.dump(pr_sel, f)
-    with open(args.output_path + "lon_sel.pkl", 'wb') as f:
-        pickle.dump(lon_sel, f)
-    with open(args.output_path + "lat_sel.pkl", 'wb') as f:
-        pickle.dump(lat_sel, f)
-    sys.exit()
+    #pr_sel = pr_sel.swapaxes(0,1) # (num_nodes, time)
+    #with open(args.output_path + "pr_sel.pkl", 'wb') as f:
+    #    pickle.dump(pr_sel, f)
+    #with open(args.output_path + "lon_sel.pkl", 'wb') as f:
+    #    pickle.dump(lon_sel, f)
+    #with open(args.output_path + "lat_sel.pkl", 'wb') as f:
+    #    pickle.dump(lat_sel, f)
+    #sys.exit()
     ###############################################################
 
     n_nodes = cell_idx_array.shape[0]
@@ -292,8 +306,8 @@ if __name__ == '__main__':
     #with open(args.output_path + 'mask_9_cells_subgraphs' + args.suffix + '.pkl', 'wb') as f:
     #    pickle.dump(mask_9_cells_subgraphs, f)
    
-    with open(args.output_path + 'idx_test.pkl', 'wb') as f:
-        pickle.dump(idx_test, f)
+    #with open(args.output_path + 'idx_test.pkl', 'wb') as f:
+    #    pickle.dump(idx_test, f)
     
     with open(args.output_path + 'idx_train_ae.pkl', 'wb') as f:
         pickle.dump(idx_train_ae, f)
@@ -452,6 +466,12 @@ if __name__ == '__main__':
     mask_train_cl = ~np.isnan(pr_sel_train_cl)
     mask_train_reg = np.logical_and(~np.isnan(pr_sel_train_reg), pr_sel_train_reg >= threshold) 
 
+    with open(args.output_path + 'mask_train_cl.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_cl), f)
+
+    with open(args.output_path + 'mask_train_reg.pkl', 'wb') as f:
+        pickle.dump(torch.tensor(mask_train_reg), f)
+   
     c = 0
     for s in range(space_low_res_dim):
         mask_1 = np.in1d(cell_idx_array, s) # shape = (n_nodes)
@@ -481,12 +501,6 @@ if __name__ == '__main__':
     with open(args.output_path + 'idx_train_reg.pkl', 'wb') as f:
         pickle.dump(idx_train_reg, f)
     
-    with open(args.output_path + 'mask_train_cl.pkl', 'wb') as f:
-        pickle.dump(torch.tensor(mask_train_cl), f)
-
-    with open(args.output_path + 'mask_train_reg.pkl', 'wb') as f:
-        pickle.dump(torch.tensor(mask_train_reg), f)
-   
     #-----------------------------------------------------
     #--------------------- SUBGRAPHS ---------------------
     #-----------------------------------------------------
