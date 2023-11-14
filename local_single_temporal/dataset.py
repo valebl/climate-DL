@@ -14,6 +14,7 @@ import torch
 import numpy as np
 from typing import Sequence, Union
 from torch_geometric.data import Data, Batch
+from torch_geometric.utils import k_hop_subgraph
 
 Edge_Index = Union[np.ndarray, None]
 Edge_Weight = Union[np.ndarray, None]
@@ -146,7 +147,15 @@ class Dataset_StaticGraphTemporalSignal(Dataset):
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
                 y=y, time_index=time_index, **additional_features)
 
-        return snapshot
+        #return snapshot
+
+        node_idx = torch.randint(high=snapshot.num_nodes, size=(1,)).item()
+        num_hops = torch.randint(low=10, high=20, size=(1,)).item()
+
+        subset, _, _, _ = k_hop_subgraph(node_idx=node_idx, num_hops=num_hops, edge_index=snapshot.edge_index, relabel_nodes=False)
+        s = snapshot.subgraph(subset=subset)
+
+        return s
 
 
 class Iterable_StaticGraphTemporalSignal(object):

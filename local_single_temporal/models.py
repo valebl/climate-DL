@@ -508,6 +508,7 @@ class Regressor_temporal_test(Regressor_temporal):
 
     def _forward_gnn(self, graph):
         y_pred = self.tgnn(graph.x, graph.edge_index)
+        y_pred = torch.expm1(y_pred)
         return y_pred.squeeze()
 
 
@@ -536,6 +537,7 @@ class Regressor_temporal_test_mod(Regressor_temporal_mod):
 
     def _forward_gnn(self, graph):
         y_pred = self.tgnn(graph.x, graph.edge_index)
+        y_pred = torch.expm1(y_pred)
         return y_pred
 
 
