@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import argparse
+import pickle
 
 import torch
 from torch import nn
@@ -27,6 +28,7 @@ parser.add_argument('--output_path', type=str, help='path to output directory')
 parser.add_argument('--input_file', type=str, default=None)
 parser.add_argument('--target_file', type=str, default=None)
 parser.add_argument('--idx_file', type=str)
+parser.add_argument('--idx_time_file', type=str)
 parser.add_argument('--checkpoint_file', type=str, default=None)
 parser.add_argument('--graph_file', type=str, default=None) 
 parser.add_argument('--mask_target_file', type=str, default=None)
@@ -58,6 +60,8 @@ parser.add_argument('--use_accelerate',  action='store_true')
 parser.add_argument('--no-use_accelerate', dest='use_accelerate', action='store_false')
 parser.add_argument('--test_model',  action='store_true')
 parser.add_argument('--no-test_model', dest='test_model', action='store_false')
+parser.add_argument('--large_graph',  action='store_true')
+parser.add_argument('--no-large_graph', dest='large_graph', action='store_false')
 
 #-- other
 parser.add_argument('--model_name', type=str)
@@ -195,14 +199,22 @@ if __name__ == '__main__':
 #-------------- DATASET AND DATALOADER ---------------
 #-----------------------------------------------------
 
-    Dataset = getattr(dataset, 'Dataset_pr_'+dataset_type)
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
+    if args.large_graph:
+        dataset_name = 'Dataset_pr_'+dataset_type+'_large'
+        collate_name = 'custom_collate_fn_'+collate_type+'_large'
+    else:
+        dataset_name = 'Dataset_pr_'+dataset_type
+        collate_name = 'custom_collate_fn_'+collate_type
+
+
+    Dataset = getattr(dataset, dataset_name)
+    custom_collate_fn = getattr(dataset, collate_name)
 
     dataset = Dataset(args, lon_dim=args.lon_dim, lat_dim=args.lat_dim)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
-            f.write(f'\nTrainset size = {dataset.length}.')
+            f.write(f'\nUsing {dataset_name} and {collate_name}.\nTrainset size = {dataset.length}.')
 
     if args.mode == 'train':
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate_fn)
@@ -250,6 +262,9 @@ if __name__ == '__main__':
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nTotal number of trainable parameters: {total_params}.")
 
+    with open(args.input_path+args.graph_file, 'rb') as f:
+        G_train = pickle.load(f)
+
     if accelerator is not None:
         if args.mode == 'train':
             model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
@@ -267,7 +282,7 @@ if __name__ == '__main__':
     if args.mode == 'train':
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.5)
         trainer = Trainer()
-        trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=epoch_start)
+        trainer.train(model, dataloader, optimizer, loss_fn, lr_scheduler, accelerator, args, epoch_start=epoch_start, G_train=G_train)
     #elif args.mode == 'get_encoding':
     #    encoder = Get_encoder()
     #    encoder.get_encoding(model, dataloader, accelerator, args)
