@@ -370,7 +370,7 @@ class Classifier_edges(nn.Module):
 
 
 class Regressor_edges(nn.Module):
-def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
+    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
