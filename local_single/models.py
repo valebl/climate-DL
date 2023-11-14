@@ -9,7 +9,7 @@ import time
 import copy
 
 class Autoencoder(nn.Module):
-    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=512, n_layers=2):
+    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=128, n_layers=2):
         super().__init__() 
         self.cnn_output_dim = cnn_output_dim
         self.gru_hidden_dim = gru_hidden_dim
@@ -624,6 +624,54 @@ class Regressor_edges_test_large(Regressor_edges_test):
         y_pred = torch.expm1(y_pred).cpu()
         G_test['pr_reg'][:, data.time_idx] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype))
         return G_test
+
+class Encoder(nn.Module):
+    def __init__(self, input_size=5, cnn_output_dim=256, gru_input_dim=256, gru_hidden_dim=256, encoding_dim=128, n_layers=2):
+        super().__init__() 
+        self.cnn_output_dim = cnn_output_dim
+        self.gru_hidden_dim = gru_hidden_dim
+        self.encoding_dim = encoding_dim
+
+        self.encoder = nn.Sequential(
+            nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(64),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,1,1), stride=2),
+            nn.Conv3d(64, 256, kernel_size=3, padding=(1,1,1), stride=1),
+            nn.BatchNorm3d(256),
+            nn.ReLU(),
+            nn.MaxPool3d(kernel_size=2, padding=(1,0,0), stride=2),
+            nn.Flatten(),
+            nn.Linear(2048, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, cnn_output_dim),
+            nn.BatchNorm1d(cnn_output_dim),
+            nn.ReLU()
+            )
+
+        # define the decoder modules
+        self.gru = nn.Sequential(
+            nn.GRU(gru_input_dim, gru_hidden_dim, n_layers, batch_first=True),
+        )
+
+        self.dense = nn.Sequential(
+            nn.Linear(gru_hidden_dim*25, encoding_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, X):
+        s = X.shape
+        X = X.reshape(s[0]*s[1], s[2], s[3], s[4], s[5])                # (batch_dim*25, 5, 5, 6, 6)
+        X = self.encoder(X)                                             # (batch_dim*25, cnn_output_dim)
+        X = X.reshape(s[0], s[1], self.cnn_output_dim)                  # (batch_dim, 25, cnn_output_dim)
+        encoding, _ = self.gru(X) # out, h                              # (batch_dim, 25, gru_hidden_dim
+        encoding = encoding.reshape(s[0], s[1]*self.gru_hidden_dim)     # (batch_dim, 25*gru_hidden_dim)
+        encoding = self.dense(encoding)                                 # (batch_dim, encoding_dim)
+        return encoding
 
 if __name__ =='__main__':
 

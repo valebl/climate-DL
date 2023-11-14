@@ -51,6 +51,18 @@ class Dataset_pr_ae(Dataset_pr):
         input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
         return input
 
+class Dataset_pr_e(Dataset_pr_ae):
+
+    def __getitem__(self, idx):
+        k = idx   
+        time_idx = k // self.space_low_res_dim
+        space_idx = k % self.space_low_res_dim
+        lat_idx = space_idx // self.lon_low_res_dim
+        lon_idx = space_idx % self.lon_low_res_dim
+        input = torch.zeros((25, 5, 5, 6, 6))
+        input[:] = self.input[time_idx - 24 : time_idx+1, :, :, lat_idx - self.pad + 2 : lat_idx + self.pad + 4, lon_idx - self.pad + 2 : lon_idx + self.pad + 4]
+        return input
+
 class Dataset_pr_ae_space(Dataset_pr_ae):
 
     def __init__(self, *args, **kwargs):
