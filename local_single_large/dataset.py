@@ -264,7 +264,7 @@ class Dataset_StaticGraphTemporalSignal_test(Dataset_StaticGraphTemporalSignal):
         additional_features = self._get_additional_features(time_index)
 
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
-                y=y, time_index=time_index, **additional_features)
+                y=y, t=time_index, **additional_features)
 
         return snapshot
 
@@ -279,7 +279,7 @@ class Dataset_StaticGraphTemporalSignal_Concat_test(Dataset_StaticGraphTemporalS
         additional_features = self._get_additional_features(time_index)
 
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
-                y=y, time_index=time_index, **additional_features)
+                y=y, t=time_index, **additional_features)
 
         return snapshot
 
