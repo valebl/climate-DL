@@ -33,7 +33,7 @@ parser.add_argument('--graph_file', type=str, default=None)
 parser.add_argument('--mask_target_file', type=str, default=None)
 parser.add_argument('--subgraphs_file', type=str, default=None)
 parser.add_argument('--weights_file', type=str, default=None)
-parser.add_argument('--encodings_file', type=str, default="encodings_train_128.pkl") 
+parser.add_argument('--encodings_file', type=str, default=None) 
 
 #-- output files
 parser.add_argument('--log_file', type=str, default='log.txt', help='log file')
@@ -63,6 +63,8 @@ parser.add_argument('--no-test_model', dest='test_model', action='store_false')
 
 #-- other
 parser.add_argument('--model_name', type=str)
+parser.add_argument('--dataset_name', type=str)
+parser.add_argument('--collate_name', type=str)
 parser.add_argument('--loss_fn', type=str, default="mse_loss")
 parser.add_argument('--model_type', type=str)
 parser.add_argument('--performance', type=str, default=None)
@@ -86,12 +88,12 @@ if __name__ == '__main__':
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
 
-    if args.model_type == 'cl' or args.model_type == 'reg':
-        #dataset_type = 'gnn_large'
-        collate_type = 'gnn_large'
-    elif args.model_type == 'ae':
-        dataset_type = 'ae'
-        collate_type = 'ae'
+    #if args.model_type == 'cl' or args.model_type == 'reg':
+    #    #dataset_type = 'gnn_large'
+    #    collate_type = 'gnn_large'
+    #elif args.model_type == 'ae':
+    #    dataset_type = 'ae'
+    #    collate_type = 'ae'
 
 #-----------------------------------------------------
 #--------------- WANDB and ACCELERATE ----------------
@@ -161,6 +163,8 @@ if __name__ == '__main__':
 #-------------- DATASET AND DATALOADER ---------------
 #----------------------------------------------------
 
+    Dataset = getattr(dataset, args.dataset_name)
+    
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f"\nLoading graph...")
@@ -171,17 +175,22 @@ if __name__ == '__main__':
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
             f.write(f" Done!")
-
-    if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.log_file, 'a') as f:
-            f.write(f"\nLoading encodings...")
     
-    with open(args.input_path+args.encodings_file, 'rb') as f:
-        encodings = pickle.load(f)
+    encodings = None
+    
+    with open(args.input_path+"input_standard.pkl", 'rb') as f:
+        input_data = pickle.load(f)
 
-    if accelerator is None or accelerator.is_main_process:
-        with open(args.output_path+args.log_file, 'a') as f:
-            f.write(f" Done!")
+#    if accelerator is None or accelerator.is_main_process:
+#        with open(args.output_path+args.log_file, 'a') as f:
+#            f.write(f"\nLoading encodings...")
+#    
+#    with open(args.input_path+args.encodings_file, 'rb') as f:
+#        encodings = pickle.load(f)
+#
+#    if accelerator is None or accelerator.is_main_process:
+#        with open(args.output_path+args.log_file, 'a') as f:
+#            f.write(f" Done!")
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
@@ -213,7 +222,7 @@ if __name__ == '__main__':
         with open(args.input_path+args.weights_file, 'rb') as f:
             weights_reg_train = pickle.load(f)
         print(torch.swapaxes(weights_reg_train,0,1).numpy().shape)
-        dataset_graph = dataset.Dataset_StaticGraphTemporalSignal(edge_index=graph.edge_index,
+        dataset_graph = Dataset(edge_index=graph.edge_index,
             features=None, #x[:130728,:,:].numpy(),
             targets=torch.swapaxes(target,0,1).numpy(),
             edge_weight=None,
@@ -221,16 +230,20 @@ if __name__ == '__main__':
             low_res=graph.low_res,
             encodings=encodings,
             train_mask=torch.swapaxes(mask_target,0,1).numpy(),
-            w=torch.swapaxes(weights_reg_train,0,1).numpy())
+            w=torch.swapaxes(weights_reg_train,0,1).numpy(),
+            input_data=input_data,
+            lon_dim=args.lon_dim)
     elif args.model_type=="cl":
-        dataset_graph = dataset.Dataset_StaticGraphTemporalSignal(edge_index=graph.edge_index,
+        dataset_graph = Dataset(edge_index=graph.edge_index,
             features=None, #x[:130728,:,:].numpy(),
             targets=torch.swapaxes(target,0,1).numpy(),
             edge_weight=None,
             z=graph.x,
             low_res=graph.low_res,
             encodings=encodings,
-            train_mask=torch.swapaxes(mask_target,0,1).numpy())
+            train_mask=torch.swapaxes(mask_target,0,1).numpy(),
+            input_data=input_data,
+            lon_dim=args.lon_dim)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
@@ -238,7 +251,7 @@ if __name__ == '__main__':
 
     # Create the dataloader
 
-    custom_collate_fn = getattr(dataset, 'custom_collate_fn_'+collate_type)
+    custom_collate_fn = getattr(dataset, args.collate_name)
     
     sampler_graph = dataset.Iterable_StaticGraphTemporalSignal(static_graph_temporal_signal=dataset_graph, shuffle=True)
     
@@ -255,7 +268,7 @@ if __name__ == '__main__':
 #-----------------------------------------------------
     
     epoch_start = 0
-    net_names = ["gnn."]
+    net_names = ["encoder.", "gru.", "gnn.", "dense."]
     #elif args.mode == 'get_encoding':
     #    net_names = ["encoder.", "gru."]
     
@@ -268,15 +281,26 @@ if __name__ == '__main__':
             with open(args.output_path+args.log_file, 'a') as f:
                 f.write("\nLoading the checkpoint to continue the training.")
         checkpoint = torch.load(args.checkpoint_file)
-        try:
-            model.load_state_dict(checkpoint["parameters"])
-        except:
-            for name, param in checkpoint["parameters"].items():
-                param = param.data
-                if name.startswith("module."):
-                    name = name.partition("module.")[2]
-                model.state_dict()[name].copy_(param)
-        optimizer.load_state_dict(checkpoint["optimizer"])
+        #try:
+        #    model.load_state_dict(checkpoint["parameters"])
+        #except:
+        state_dict = checkpoint["parameters"]
+        for name, param in state_dict.items():
+            for net_name in net_names:
+                if net_name in name and "edge.weight" not in name:
+                    if accelerator is None or accelerator.is_main_process:
+                        with open(args.output_path+args.log_file, 'a') as f:
+                            f.write(f"\nLoading parameters '{name}'")
+                    param = param.data
+                    if name.startswith("module"):
+                        name = name.partition("module.")[2]
+                        try:
+                            model.state_dict()[name].copy_(param)
+                        except:
+                            if accelerator is None or accelerator.is_main_process:
+                                with open(args.output_path+args.log_file, 'a') as f:
+                                    f.write(f"\nParam {name} was not loaded..")
+        #optimizer.load_state_dict(checkpoint["optimizer"])
         epoch_start = checkpoint["epoch"] + 1
 
     check_freezed_layers(model, args.output_path, args.log_file, accelerator)
