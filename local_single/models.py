@@ -293,11 +293,12 @@ class Regressor_z_only(nn.Module):
 #----------------------------------------------
 
 class Classifier_edges(nn.Module):
-    def __init__(self, input_size=5, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
+    def __init__(self, input_size=5, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, encoding_dim=512, node_dim=1, edge_attr_dim=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
         self.edge_attr_dim = edge_attr_dim
+        self.encoding_dim=encoding_dim
         self.encoder = nn.Sequential(
             nn.Conv3d(input_size, 64, kernel_size=3, padding=(1,1,1), stride=1),
             nn.BatchNorm3d(64),
@@ -322,12 +323,12 @@ class Classifier_edges(nn.Module):
             nn.GRU(input_dim, hidden_dim, n_layers, batch_first=True),
             )
         self.dense = nn.Sequential(
-            nn.Linear(hidden_dim*25, 512),
+            nn.Linear(hidden_dim*25, encoding_dim),
             nn.ReLU()
             ) 
         self.gnn = geometric_nn.Sequential('x, edge_index, edge_attr', [
-            (geometric_nn.BatchNorm(node_dim+512), 'x -> x'),
-            (GATv2Conv(node_dim+512, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=edge_attr_dim),  'x, edge_index, edge_attr -> x'),
+            (geometric_nn.BatchNorm(node_dim+encoding_dim), 'x -> x'),
+            (GATv2Conv(node_dim+encoding_dim, 128, heads=2, aggr='mean', dropout=0.5, edge_dim=edge_attr_dim),  'x, edge_index, edge_attr -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
             (GATv2Conv(256, 128, aggr='mean', edge_dim=edge_attr_dim), 'x, edge_index, edge_attr -> x'),
@@ -370,7 +371,7 @@ class Classifier_edges(nn.Module):
 
 
 class Regressor_edges(nn.Module):
-    def __init__(self, input_size=5, gru_hidden_dim=12, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, node_dim=1, edge_attr_dim=1):
+    def __init__(self, input_size=5, cnn_output_dim=256, n_layers=2, input_dim=256, hidden_dim=256, encoding_dim=512, node_dim=1, edge_attr_dim=1):
         super().__init__()
         self.cnn_output_dim = cnn_output_dim
         self.node_dim = node_dim
