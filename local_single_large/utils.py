@@ -285,8 +285,8 @@ class Tester_large(object):
         with torch.no_grad():    
             for graph in dataloader:
                 graph = to_device(graph)
-                model_cl(graph, G_test, graph.time_index)
-                model_reg(graph, G_test, graph.time_index)
+                model_cl(graph, G_test, graph.t)
+                model_reg(graph, G_test, graph.t)
                 if step % 100 == 0:
                     with open(args.output_path+args.log_file, 'a') as f:
                         f.write(f"\nStep {step} done.")

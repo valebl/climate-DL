@@ -557,6 +557,33 @@ class Regressor_GNN_concat_GCN_test(Regressor_GNN_concat_GCN):
         return y_pred
 
 
+class Classifier_e_GNN_large_test(Classifier_e_GNN_large):
+
+    def forward(self, graph, G_test, time_index):
+        encoding = self._forward_encoding(graph.input_data)
+        y_pred = self._forward_gnn(graph, encoding)
+        G_test['pr_cl'][:,time_index] = torch.where(y_pred > 0.5, 1.0, 0.0).cpu()
+        return G_test
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.gnn(graph.x, graph.edge_index)
+        return y_pred
+
+
+class Regressor_e_GNN_large_test(Regressor_e_GNN_large):
+
+    def forward(self, graph, G_test, time_index):
+        encoding = self._forward_encoding(graph.input_data)
+        y_pred = self._forward_gnn(graph, encoding)
+        G_test['pr_reg'][:,time_index] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype)).cpu()
+        return G_test
+    
+    def _forward_gnn(self, graph):
+        y_pred = self.gnn(graph.x, graph.edge_index)
+        y_pred = torch.expm1(y_pred)
+        return y_pred
+
+
 if __name__ =='__main__':
 
     model = Regressor_temporal()

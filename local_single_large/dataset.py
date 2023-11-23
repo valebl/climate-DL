@@ -52,6 +52,7 @@ class Dataset_StaticGraphTemporalSignal(Dataset):
         targets: Targets,
         encodings: Encodings,
         z: Z,
+        low_res : Low_Res,
         lon_low_res_dim: Lon_Dim,
         **kwargs: Additional_Features
     ):
@@ -61,8 +62,9 @@ class Dataset_StaticGraphTemporalSignal(Dataset):
         self.targets = targets
         self.encodings = encodings
         self.z = z
-        #self.z = self.z.unsqueeze(0).repeat(25,1,1)
         self.low_res = low_res
+        #self.z = self.z.unsqueeze(0).repeat(25,1,1)
+        self.lon_low_res_dim = lon_low_res_dim
         self.additional_feature_keys = []
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -147,7 +149,7 @@ class Dataset_StaticGraphTemporalSignal(Dataset):
         additional_features = self._get_additional_features(time_index)
 
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
-                y=y, time_index=time_index, low_res=self.low_res, **additional_features)
+                y=y, t=time_index, low_res=self.low_res, **additional_features)
 
         #return snapshot
 
@@ -188,7 +190,7 @@ class Dataset_StaticGraphTemporalSignal_FineTune(Dataset_StaticGraphTemporalSign
         encodings: Encodings,
         z: Z,
         low_res: Low_Res,
-        lon_dim : Lon_Dim,
+        lon_low_res_dim : Lon_Dim,
         **kwargs: Additional_Features
     ):
         self.edge_index = edge_index
@@ -207,7 +209,7 @@ class Dataset_StaticGraphTemporalSignal_FineTune(Dataset_StaticGraphTemporalSign
 #        self._check_temporal_consistency()
         self.length = self.__len__()
         self._set_snapshot_count()
-        self.lon_low_res_dim = lon_dim
+        self.lon_low_res_dim = lon_low_res_dim
         self.pad = 2
 
 
@@ -278,6 +280,22 @@ class Dataset_StaticGraphTemporalSignal_Concat_test(Dataset_StaticGraphTemporalS
 
         snapshot = Data(x=x, edge_index=edge_index, edge_attr=edge_weight,
                 y=y, time_index=time_index, **additional_features)
+
+        return snapshot
+
+class Dataset_StaticGraphTemporalSignal_FineTune_test(Dataset_StaticGraphTemporalSignal_FineTune):
+
+    def __getitem__(self, time_index: int):
+        edge_index = self._get_edge_index()
+        edge_weight = self._get_edge_weight()
+        y = self._get_target(time_index)
+        additional_features = self._get_additional_features(time_index)
+
+        input_data, k = self._get_features(s, time_index)
+        
+        snapshot = Data(num_nodes=y.shape[0], edge_index=edge_index, edge_attr=edge_weight,
+                y=y, t=torch.tensor([time_index]), low_res=self.low_res, z=self.z,
+                t_list=torch.tensor([time_index]).repeat(y.shape[0]), input_data=input_data, k=k, **additional_features)
 
         return snapshot
 
