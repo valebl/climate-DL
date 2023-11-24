@@ -290,12 +290,14 @@ class Dataset_StaticGraphTemporalSignal_FineTune_test(Dataset_StaticGraphTempora
         edge_weight = self._get_edge_weight()
         y = self._get_target(time_index)
         additional_features = self._get_additional_features(time_index)
-
-        input_data, k = self._get_features(s, time_index)
         
         snapshot = Data(num_nodes=y.shape[0], edge_index=edge_index, edge_attr=edge_weight,
                 y=y, t=torch.tensor([time_index]), low_res=self.low_res, z=self.z,
-                t_list=torch.tensor([time_index]).repeat(y.shape[0]), input_data=input_data, k=k, **additional_features)
+                t_list=torch.tensor([time_index]).repeat(y.shape[0]), **additional_features)
+
+        input_data, k = self._get_features(snapshot, time_index)
+        snapshot["input_data"] = input_data
+        snapshot["k"] = k
 
         return snapshot
 

@@ -578,7 +578,18 @@ class Regressor_e_GNN_large_test(Regressor_e_GNN_large):
         G_test['pr_reg'][:,time_index] = torch.where(y_pred >= 0.1, y_pred, torch.tensor(0.0, dtype=y_pred.dtype)).cpu()
         return G_test
     
-    def _forward_gnn(self, graph):
+    def _forward_gnn(self, graph, encoding):
+        device = graph.input_data.device
+        graph.x = torch.zeros((graph.num_nodes, self.node_dim+self.encoding_dim)).to(device)
+        graph.x[:,:1] = graph.z
+        for i, ki in enumerate(graph.k):
+            space_idx = ki[0].item()
+            time_idx = ki[1].item()
+            mask_space = graph.low_res == space_idx       
+            mask_time = graph.t_list == time_idx
+            mask = mask_space*mask_time
+            graph.x[mask,1:] = encoding[i].repeat(mask.sum(),1)
+
         y_pred = self.gnn(graph.x, graph.edge_index)
         y_pred = torch.expm1(y_pred)
         return y_pred
