@@ -6,19 +6,13 @@ import time
 import os
 import matplotlib.pyplot as plt
 import sys
-sys.path.append("/leonardo_work/ICT23_ESP_0/vblasone/climate-DL/local_single")
-#sys.path.append("/home/vblasone/climate-DL/local_multiple")
-
-import models
-import dataset
-from utils import load_encoder_checkpoint as load_checkpoint, Tester
-from utils_predictions import create_zones, plot_maps, date_to_day, extremes_cmap
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 #-- paths
 parser.add_argument('--input_path', type=str, help='path to input directory')
 parser.add_argument('--output_path', type=str, help='path to output directory')
+parser.add_argument('--base_path', type=str, help='path to climate-DL')
 
 #-- input files
 parser.add_argument('--input_file', type=str, default="input_standard.pkl")
@@ -66,9 +60,16 @@ parser.add_argument('--lat_dim', type=int, default=None)
 
 #from torchmetrics.classification import BinaryConfusionMatrix
 
-if __name__ == '__main__':
+args = parser.parse_args()
+sys.path.append(args.base_path+"/climate-DL/local_single")
 
-    args = parser.parse_args()
+import models
+import dataset
+from utils import load_encoder_checkpoint as load_checkpoint, Tester
+from utils_predictions import create_zones, plot_maps, date_to_day, extremes_cmap
+
+
+if __name__ == '__main__':
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
@@ -112,7 +113,7 @@ if __name__ == '__main__':
 
     if args.large_graph:
         dataset_type = 'Dataset_pr_test_large'
-        custom_collate_type = 'custom_collate_fn_gnn_test_large'
+        custom_collate_type = 'custom_collate_fn_gnn_large'
     else:
         dataset_type = 'Dataset_pr_test'
         custom_collate_type = 'custom_collate_fn_gnn'
@@ -197,7 +198,7 @@ if __name__ == '__main__':
             f.write(f"\n\nMaking some plots.")
         with open(args.input_path+"valid_examples_space.pkl", 'rb') as f:
             valid_examples_space = pickle.load(f)
-        zones = create_zones()
+        zones = create_zones(zones_file=args.base_path+"climate-DL/preprocessing/Italia.txt")
         mask = np.logical_and(np.array([~torch.isnan(G_test.y[i,:]).all().numpy() for i in range(G_test.pr.shape[0])]), np.in1d(G_test.low_res, valid_examples_space))
         y_target = G_test.y.numpy()[mask,:]
         # Classifier

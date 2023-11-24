@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, date
 import numpy as np
 import matplotlib
 
-def create_zones(zones_file='/leonardo_work/ICT23_ESP_0/SHARED/climate-DL/preprocessing/Italia.txt'):
+def create_zones(zones_file):
     zones = []
     with open(zones_file) as f:
         lines = f.read()

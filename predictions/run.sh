@@ -29,6 +29,6 @@ conda activate ${ENV_PATH}
 cd ${MAIN_PATH}
 
 ## predictions
-python main.py --input_path=${INPUT_PATH} --output_path=${OUTPUT_PATH} --input_file=${INPUT_FILE} --test_graph_file=${TEST_GRAPH_FILE} --subgraphs_file=${SUBGRAPHS_FILE} --checkpoint_cl=${CHECKPOINT_CL} --checkpoint_reg=${CHECKPOINT_REG} --model_name_cl=${MODEL_NAME_CL} --model_name_reg=${MODEL_NAME_REG} --output_file=${OUTPUT_FILE} --log_file=${LOG_FILE} --lon_min=${LON_MIN} --lon_max=${LON_MAX} --lat_min=${LAT_MIN} --lat_max=${LAT_MAX} ${MAKE_PLOTS} ${LARGE_GRAPH} --img_extension=${IMG_EXTENSION} --year_start=${YEAR_START} --month_start=${MONTH_START} --day_start=${DAY_START} --year_end=${YEAR_END} --month_end=${MONTH_END} --day_end=${DAY_END} --first_year=${FIRST_YEAR} --cmap=${CMAP} --batch_size=${BATCH_SIZE}
+python main.py --input_path=${INPUT_PATH} --output_path=${OUTPUT_PATH} --base_path=${BASE_PATH} --input_file=${INPUT_FILE} --test_graph_file=${TEST_GRAPH_FILE} --subgraphs_file=${SUBGRAPHS_FILE} --checkpoint_cl=${CHECKPOINT_CL} --checkpoint_reg=${CHECKPOINT_REG} --model_name_cl=${MODEL_NAME_CL} --model_name_reg=${MODEL_NAME_REG} --output_file=${OUTPUT_FILE} --log_file=${LOG_FILE} --lon_min=${LON_MIN} --lon_max=${LON_MAX} --lat_min=${LAT_MIN} --lat_max=${LAT_MAX} ${MAKE_PLOTS} ${LARGE_GRAPH} --img_extension=${IMG_EXTENSION} --year_start=${YEAR_START} --month_start=${MONTH_START} --day_start=${DAY_START} --year_end=${YEAR_END} --month_end=${MONTH_END} --day_end=${DAY_END} --first_year=${FIRST_YEAR} --cmap=${CMAP} --batch_size=${BATCH_SIZE}
 EOT
 
