@@ -65,9 +65,12 @@ def accuracy_binary_two_class1(prediction, target):
     else:
         return 0.0
 
-def weighted_mse_loss(input_batch, target_batch, weights):
+def weighted_mse_loss(prediction_batch, target_batch, weights):
     #return (weights * (input_batch - target_batch) ** 2).sum() / weights.sum()
-    return torch.mean(weights * (input_batch - target_batch) ** 2)
+    return torch.mean(weights * (prediction_batch - target_batch) ** 2)
+
+def quantile_loss(prediction_batch, target_batch, weights, q=0.25):
+    return torch.mean(weights * torch.max(q*(prediction_batch-target_batch), (q-1)*(prediction_batch-target_batch)))
 
 def load_encoder_checkpoint(model, checkpoint, log_path, log_file, accelerator, net_names, fine_tuning=True, device=None):
     if accelerator is None or accelerator.is_main_process:

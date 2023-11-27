@@ -342,13 +342,13 @@ class Classifier_e_GNN_large(nn.Module):
             ) 
         self.gnn = geometric_nn.Sequential('x, edge_index', [
             (geometric_nn.BatchNorm(node_dim+encoding_dim), 'x -> x'),
-            (GATv2Conv(node_dim+encoding_dim, 128, heads=2, aggr='mean', dropout=0.5),  'x, edge_index -> x'),
+            (GATv2Conv(node_dim+encoding_dim, 128, heads=2, aggr='sum', dropout=0.5),  'x, edge_index -> x'),
             (geometric_nn.BatchNorm(256), 'x -> x'),
             nn.ReLU(),
-            (GATv2Conv(256, 128, aggr='mean'), 'x, edge_index -> x'),
+            (GATv2Conv(256, 128, aggr='sum'), 'x, edge_index -> x'),
             (geometric_nn.BatchNorm(128), 'x -> x'),
             nn.ReLU(),
-            (GATv2Conv(128, 1, aggr='mean'), 'x, edge_index -> x'),
+            (GATv2Conv(128, 1, aggr='sum'), 'x, edge_index -> x'),
             nn.Sigmoid()
             ])
 

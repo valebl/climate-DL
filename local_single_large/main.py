@@ -141,6 +141,8 @@ if __name__ == '__main__':
             loss_fn = nn.CrossEntropyLoss(weight=torch.tensor([0.1,1]))
         elif args.loss_fn == 'weighted_mse_loss':
             loss_fn = getattr(utils, 'weighted_mse_loss')
+        elif args.loss_fn == 'quantile_loss':
+            loss_fn = getattr(utils, 'quantile_loss')
         else:
             loss_fn = getattr(nn.functional, args.loss_fn)    
         
@@ -232,7 +234,7 @@ if __name__ == '__main__':
             train_mask=torch.swapaxes(mask_target,0,1).numpy(),
             w=torch.swapaxes(weights_reg_train,0,1).numpy(),
             input_data=input_data,
-            lon_dim=args.lon_dim)
+            lon_low_res_dim=args.lon_dim)
     elif args.model_type=="cl":
         dataset_graph = Dataset(edge_index=graph.edge_index,
             features=None, #x[:130728,:,:].numpy(),
@@ -243,7 +245,7 @@ if __name__ == '__main__':
             encodings=encodings,
             train_mask=torch.swapaxes(mask_target,0,1).numpy(),
             input_data=input_data,
-            lon_dim=args.lon_dim)
+            lon_low_res_dim=args.lon_dim)
 
     if accelerator is None or accelerator.is_main_process:
         with open(args.output_path+args.log_file, 'a') as f:
